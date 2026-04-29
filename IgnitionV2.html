@@ -482,9 +482,9 @@ var FEED_GROUP = [0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3, -1];
   loadGitHubConfig();
   loadCachedWeeklySnapshot();
   updateWeightBadge();
-  if(ls(K.GH_TOKEN) && ls(K.GH_REPO)){
-    ghFetchWeeklySnapshot(true);
-    ghFetchRankSnapshot(true);
+  if(ls(K.GH_REPO)){
+    ghFetchWeeklySnapshot(true);   // no token needed
+    ghFetchRankSnapshot(true);     // no token needed
   }
 })();
 
@@ -893,17 +893,17 @@ function updateGhTokenDot(){
   if(!dot) return;
   dot.style.background = ok ? 'var(--green)' : 'var(--text-dim)';
   lbl.style.color      = ok ? 'var(--green)' : 'var(--text-dim)';
-  lbl.textContent      = ok ? 'Token saved · '+ls(K.GH_REPO) : (ls(K.GH_TOKEN)?'Token saved — repo missing':'No token saved');
+  lbl.textContent      = ok ? 'Token saved · '+ls(K.GH_REPO) : (ls(K.GH_TOKEN)?'Token saved — repo missing':(ls(K.GH_REPO)?'Repo set · pull OK · no token (push disabled)':'No token or repo — enter repo below to pull'));
 }
 
 // Pull Weekly Snapshot .txt
 function ghFetchWeeklySnapshot(silent){
-  var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO), path=ls(K.GH_PATH)||'data/weekly_snapshot.txt';
-  if(!token||!repo){ if(!silent) ghStatus('⚠ Token and repo required.'); return; }
+  var repo=ls(K.GH_REPO), path=ls(K.GH_PATH)||'data/weekly_snapshot.txt';
+  if(!repo){ if(!silent) ghStatus('⚠ Repo required (owner/repo).'); return; }
   ghStatus('⏳ Fetching snapshot…');
   document.getElementById('ws-dot').className      = 'status-dot loading';
   document.getElementById('ws-status').textContent = 'Fetching from GitHub…';
-  ghGet(token, repo, path)
+  ghRawFetch(repo, path)
     .then(function(r){ return r.text(); })
     .then(function(text){
       processWeeklySnapshot(text, 'GitHub · '+path);
@@ -918,11 +918,11 @@ function ghFetchWeeklySnapshot(silent){
     });
 }
 
-// Push today's rank positions
+// Push today's rank positions — requires token
 function ghPushRankSnapshot(){
   if(!ignData.length){ showToast('Run scores first — no ranked data to push','warn'); return; }
   var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO), path=ls(K.GH_SNAP)||'data/rank_snapshot.json';
-  if(!token||!repo){ ghStatus('⚠ Token and repo required.'); return; }
+  if(!token||!repo){ ghStatus('⚠ Token and repo required for push.'); return; }
 
   var sorted = ignData.slice().sort(function(a,b){ return b.rank-a.rank; });
   var ranks  = {}; sorted.forEach(function(d,i){ ranks[d.tidm]=i+1; });
@@ -944,11 +944,11 @@ function ghPushRankSnapshot(){
     .catch(function(e){ ghStatus('✗ '+e.message); showToast('Push failed: '+e.message,'err',4000); });
 }
 
-// Pull prev-day rank snapshot → delta arrows
+// Pull prev-day rank snapshot → delta arrows — no token needed
 function ghFetchRankSnapshot(silent){
-  var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO), path=ls(K.GH_SNAP)||'data/rank_snapshot.json';
-  if(!token||!repo) return;
-  ghGet(token, repo, path)
+  var repo=ls(K.GH_REPO), path=ls(K.GH_SNAP)||'data/rank_snapshot.json';
+  if(!repo) return;
+  ghRawFetch(repo, path)
     .then(function(r){ return r.json(); })
     .then(function(payload){
       if(!payload._meta||!payload.ranks) return;
@@ -962,6 +962,16 @@ function ghFetchRankSnapshot(silent){
 }
 
 // GitHub API primitives
+// Pull: no token — uses public raw URL (works on any PC without credentials)
+function ghRawFetch(repo, path){
+  var url = 'https://raw.githubusercontent.com/'+repo+'/main/'+path;
+  return fetch(url).then(function(r){
+    if(!r.ok) throw new Error('GitHub raw '+r.status+' — check repo/path and that file is on main branch');
+    return r;
+  });
+}
+
+// Push: requires token — uses authenticated API
 function ghGet(token, repo, path){
   return fetch('https://api.github.com/repos/'+repo+'/contents/'+path, {
     headers:{ 'Authorization':'token '+token, 'Accept':'application/vnd.github.v3.raw' }
@@ -1128,15 +1138,12 @@ function ignRun(){
     var acqn    = col(c,'AB');  // Acquisitions (m)
 
     // ── GROUP D: Price / Volume / Trend / MA / RSI ──────────
-    var ma21    = col(dp,'Q');
-    var ma50    = col(dp,'R');
-    var ma100   = col(dp,'S');
-    var ma200   = col(dp,'T');
+    var ma21    = col(dp,'Q');  // 21d MA value (unused in signals — kept for scorecard reference)
     var rsi     = col(dp,'U');
     var newHigh = colS(dp,'V');
-    var stTrend = colS(dp,'N');   // Short Term Trend
-    var secTrend= colS(dp,'O');   // Secondary Trend
-    var ltTrend = colS(dp,'P');   // Long Term Trend
+    var stTrend = colS(dp,'N');   // Short Term Trend (text)
+    var secTrend= colS(dp,'O');   // Secondary Trend (text)
+    var ltTrend = colS(dp,'P');   // Long Term Trend (text)
     var upgEps1w= col(dp,'I');    // fc EPS upgrade % 1w
     var upgRev1w= col(dp,'H');    // fc Turnover upgrade % 1w
     var upgEps1m= col(dp,'L');    // fc EPS upgrade % 1m
@@ -1154,16 +1161,11 @@ function ignRun(){
     var bTrend = ws ? ws.eps_trend  : null;
 
     // ── MA SIGNALS ───────────────────────────────────────────
-    // Price above MA = bullish; use close vs MA value
-    var priceRef = price || close;
-    var ltOk = (priceRef!==null && ma200!==null) ? priceRef > ma200 : null;
-    var mtOk = (priceRef!==null && ma100!==null) ? priceRef > ma100 : null;
-    var stOk = (priceRef!==null && ma50!==null)  ? priceRef > ma50  : null;
-
-    // Fallback: use trend string if price/MA not available
-    if(ltOk === null && ltTrend) ltOk = /up|rising|bull/i.test(ltTrend) ? true : /down|falling|bear/i.test(ltTrend) ? false : null;
-    if(mtOk === null && secTrend) mtOk = /up|rising|bull/i.test(secTrend) ? true : /down|falling|bear/i.test(secTrend) ? false : null;
-    if(stOk === null && stTrend) stOk = /up|rising|bull/i.test(stTrend) ? true : /down|falling|bear/i.test(stTrend) ? false : null;
+    // Group D cols Q/R/S/T = MA trend flags: "1" = rising, blank = falling
+    // Question: "is this MA higher than last week?" — 1=yes, blank=no
+    var ltOk = colS(dp,'T') === '1' ? true : colS(dp,'T') === '' ? false : null; // 200d MA
+    var mtOk = colS(dp,'S') === '1' ? true : colS(dp,'S') === '' ? false : null; // 100d MA
+    var stOk = colS(dp,'R') === '1' ? true : colS(dp,'R') === '' ? false : null; // 50d MA
 
     var maCount = [ltOk,mtOk,stOk].filter(function(v){ return v===true; }).length;
     var maMult  = maCount===3?1.00:maCount===2?0.85:maCount===1?0.70:0.55;
@@ -1341,6 +1343,46 @@ function ignRun(){
       standout:     standout,
       excluded:     excluded,
       _ws:          ws,
+      // scoring intermediates — used by scorecard breakdown + debug
+      _sc: {
+        halfBeatEps:  halfBeatEps,
+        halfBeatRev:  halfBeatRev,
+        epsGrowthFc:  epsGrowthFc,   // already capped
+        revGrowthFc:  revGrowthFc,
+        epsAccH:      epsAccH,
+        epsAccFc:     epsAccFc,
+        revAccH:      revAccH,
+        cBeat:        cBeat,
+        cEg:          cEg,
+        cRg:          cRg,
+        cBreak:       cBreak,
+        cAccH:        cAccH,
+        cAccE:        cAccE,
+        cAccR:        cAccR,
+        wBeat:        wBeat,
+        wEg:          wEg,
+        wRg:          wRg,
+        wBreak:       wBreak,
+        wAccH:        wAccH,
+        wAccE:        wAccE,
+        wAccR:        wAccR,
+        wTotal:       wTotal,
+        rawScore:     wTotal > 0 ? (score / wTotal) * 99 : 0,
+        epsFloor:     epsFloor,
+        revFloor:     revFloor,
+        isFTSE350:    isFTSE350,
+        // raw inputs for debug
+        eps1FY: eps1FY, eps2FY: eps2FY, epsFY: epsFY,
+        epsFc:  epsFc,  epsFc2: epsFc2,
+        epsH1:  epsH1,  epsH2:  epsH2,
+        eps1H1: eps1H1, eps1H2: eps1H2,
+        rev1FY: rev1FY, rev2FY: rev2FY, revFY: revFY,
+        revFc:  revFc,  revFc2: revFc2,
+        revH1:  revH1,  revH2:  revH2,
+        rev1H1: rev1H1, rev1H2: rev1H2,
+        bEps1m: bEps1m, bRev1m: bRev1m, bEps1w: bEps1w,
+        bEpsBonus: bEpsBonus, bRevBonus: bRevBonus,
+      },
     });
   });
 
@@ -1481,7 +1523,7 @@ function ignOpenPopup(tidm){
   function fv(v){ var n=parseFloat(String(v||'').replace(/,/g,'').trim()); return isNaN(n)?null:n; }
   function fmtN(v,d2,sfx){ if(v===null||v===undefined) return '<span style="color:var(--text-dim)">—</span>'; return '<span style="color:var(--text-secondary);">'+v.toFixed(d2||1)+(sfx||'')+'</span>'; }
   function fmtC(v,d2,sfx){ if(v===null||v===undefined) return '<span style="color:var(--text-dim)">—</span>'; var c=v>=0?'var(--green)':'var(--red)'; return '<span style="color:'+c+';font-weight:600;">'+(v>=0?'+':'')+v.toFixed(d2||1)+(sfx||'')+'</span>'; }
-  function chg(cur,prev){ if(cur===null||prev===null||prev===0) return null; return (cur/prev-1)*100; }
+  function chg(cur,prev){ if(cur===null||prev===null||prev===0) return null; if(prev<0&&cur>0) return Math.abs(cur-prev)/Math.abs(prev)*100; return (cur/prev-1)*100; }
   function thS(c){ return 'padding:3px 8px;text-align:right;font-size:9px;color:'+c+';font-weight:600;font-family:var(--font-display);letter-spacing:.05em;'; }
   function tdS(){ return 'padding:3px 8px;text-align:right;font-size:10px;'; }
   function bFlag(b2,lbl){ return b2?'<span style="color:var(--green);font-weight:700;">✓ '+lbl+'</span>':'<span style="color:var(--text-dim);">— '+lbl+'</span>'; }
@@ -1493,7 +1535,11 @@ function ignOpenPopup(tidm){
   }
   function fmtCH(c2,prev){
     var v=chg(c2,prev); if(v===null) return '<span style="color:var(--text-dim)">—</span>';
-    var cl=(v>=0)?'var(--green)':(c2!==null&&c2<0&&prev!==null&&prev<0&&c2>prev*0.5)?'var(--blue)':'var(--red)';
+    // green if loss→profit crossover
+    var lossToProfit = prev!==null&&prev<0&&c2!==null&&c2>0;
+    // blue if both negative but losses reducing >50%
+    var lossReducing = c2!==null&&c2<0&&prev!==null&&prev<0&&c2>prev*0.5;
+    var cl = (v>=0||lossToProfit) ? 'var(--green)' : lossReducing ? 'var(--blue)' : 'var(--red)';
     return '<span style="color:'+cl+';font-weight:600;">'+(v>=0?'+':'')+v.toFixed(1)+'%</span>';
   }
 
@@ -1543,36 +1589,108 @@ function ignOpenPopup(tidm){
       +'<td style="border-left:1px solid var(--border);'+tdS()+'">'+fmtCH(c2,avg3)+'</td></tr>';
   }
 
-  // ── bonus reconstruction for score breakdown ──
-  var epsB=bEps1m!==null?(bEps1m>15?6:bEps1m>5?4:bEps1m>2?2:0):0;
-  var revB=bRev1m!==null?(bRev1m>15?4:bRev1m>5?3:bRev1m>2?2:0):0;
-  var bothB=(epsB>0&&revB>0)?2:0;
-  var wkMod=bEps1w!==null?(bEps1w>0?1:bEps1w<-3?-2:bEps1w<0?-1:0):0;
-  var epsHB=d.eps_new_high?5:0, revHB=d.rev_new_high?3:0;
-  var totBonus=epsHB+revHB+epsB+revB+bothB+wkMod;
-
-  function bRow(lbl,pts,note){
-    var c2=pts>0?'var(--green)':pts<0?'var(--red)':'var(--text-dim)';
+  // ── score breakdown using stored intermediates ──
+  var sc = d._sc || {};
+  function pL(v){ return (v===null||v===undefined)?'—':v.toFixed(1)+'%'; }
+  function pBar(pts,clr){
+    var pct = pts!==null ? Math.round(Math.max(0,Math.min(100,pts*100))) : null;
+    return '<div style="display:flex;align-items:center;gap:4px;">'
+      +'<div style="flex:1;height:4px;background:var(--surface3);border-radius:2px;min-width:32px;">'+(pct!==null?'<div style="width:'+pct+'%;height:100%;background:'+clr+';border-radius:2px;"></div>':'')+'</div>'
+      +'<span style="font-size:9px;font-weight:700;color:'+clr+';min-width:22px;text-align:right;">'+(pct!==null?pct:'n/a')+'</span>'
+    +'</div>';
+  }
+  function sRow(lbl,val,wt,comp,note){
+    var hasCmp = comp!==null&&comp!==undefined;
+    var clr = hasCmp?(comp>=0.7?'var(--green)':comp>=0.4?'var(--amber)':'var(--red)'):'var(--text-dim)';
+    var dim = !hasCmp;
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
+      +'<td style="padding:4px 6px 4px 0;font-size:9px;color:'+(dim?'var(--text-dim)':'var(--text-secondary)')+';white-space:nowrap;">'+lbl+'</td>'
+      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;white-space:nowrap;">'+val+'</td>'
+      +'<td style="padding:4px;font-size:9px;color:var(--text-dim);text-align:right;">'+(wt!==null?(wt*100).toFixed(0)+'%':'—')+'</td>'
+      +'<td style="padding:4px 0 4px 4px;min-width:80px;">'+pBar(hasCmp?comp:null,clr)+'</td>'
+      +'<td style="padding:4px 0 4px 6px;font-size:8px;color:var(--text-dim);white-space:nowrap;">'+(note||'')+'</td></tr>';
+  }
+  function bRow2(lbl,pts,note){
+    var clr=pts>0?'var(--green)':pts<0?'var(--red)':'var(--text-dim)';
     return '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">'
       +'<td style="padding:3px 6px 3px 0;font-size:9px;color:var(--text-secondary);" colspan="3">'+lbl+'</td>'
-      +'<td style="padding:3px 4px;font-size:9px;font-weight:700;color:'+c2+';text-align:right;">'+(pts>0?'+':'')+pts+'</td>'
+      +'<td style="padding:3px 4px;font-size:9px;font-weight:700;color:'+clr+';text-align:right;">'+(pts>0?'+':'')+pts+'</td>'
       +'<td style="padding:3px 0 3px 6px;font-size:8px;color:var(--text-dim);">'+(note||'')+'</td></tr>';
   }
 
-  var scoreHTML=
-    '<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Bonuses</div>'
+  // Effective weights (after redistribution)
+  var effWBeat=sc.wBeat||0.25, effWEg=sc.wEg||0.20, effWRg=sc.wRg||0.20;
+  var effWBreak=sc.wBreak||0.12, effWAccH=sc.wAccH||0.10, effWAccE=sc.wAccE||0.08, effWAccR=sc.wAccR||0.05;
+
+  var bEps1mSc=sc.bEps1m, bRev1mSc=sc.bRev1m, bEps1wSc=sc.bEps1w;
+  var epsBS=sc.bEpsBonus||0, revBS=sc.bRevBonus||0;
+  var bothBS=(epsBS>0&&revBS>0)?2:0;
+  var wkMod=bEps1wSc!==null?(bEps1wSc>0?1:bEps1wSc<-3?-2:bEps1wSc<0?-1:0):0;
+  var epsHB=d.eps_new_high?5:0, revHB=d.rev_new_high?3:0;
+  var totBonus=epsHB+revHB+epsBS+revBS+bothBS+wkMod;
+
+  // Debug panel
+  function dn(v){ return (v===null||v===undefined)?'<span style="color:var(--red)">null</span>':'<span style="color:var(--green)">'+Number(v).toFixed(2)+'</span>'; }
+  var dbg = '<details style="margin-bottom:10px;">'
+    +'<summary style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--amber);cursor:pointer;user-select:none;">🔍 Debug — raw inputs</summary>'
+    +'<div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:9px;line-height:2;margin-top:6px;">'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;">EPS actuals</div>'
+    +'<div>H1 cur='+dn(sc.epsH1)+'  H2 cur='+dn(sc.epsH2)+'  H1 1y='+dn(sc.eps1H1)+'  H2 1y='+dn(sc.eps1H2)+'</div>'
+    +'<div>FY cur='+dn(sc.epsFY)+'  FY 1y='+dn(sc.eps1FY)+'  FY 2y='+dn(sc.eps2FY)+'  fc='+dn(sc.epsFc)+'  fc2='+dn(sc.epsFc2)+'</div>'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;">Revenue actuals</div>'
+    +'<div>H1 cur='+dn(sc.revH1)+'  H2 cur='+dn(sc.revH2)+'  H1 1y='+dn(sc.rev1H1)+'  H2 1y='+dn(sc.rev1H2)+'</div>'
+    +'<div>FY cur='+dn(sc.revFY)+'  FY 1y='+dn(sc.rev1FY)+'  FY 2y='+dn(sc.rev2FY)+'  fc='+dn(sc.revFc)+'  fc2='+dn(sc.revFc2)+'</div>'
+    +'<div style="color:var(--text-dim);font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;">Computed</div>'
+    +'<div>halfBeatEps='+dn(sc.halfBeatEps)+'  halfBeatRev='+dn(sc.halfBeatRev)+'</div>'
+    +'<div>epsGrowthFc (capped)='+dn(sc.epsGrowthFc)+'  revGrowthFc='+dn(sc.revGrowthFc)+'</div>'
+    +'<div>epsAccH='+dn(sc.epsAccH)+'  epsAccFc='+dn(sc.epsAccFc)+'  revAccH='+dn(sc.revAccH)+'</div>'
+    +'<div>rawScore='+dn(sc.rawScore)+'  wTotal='+dn(sc.wTotal)+'</div>'
+    +'<div>floor: EPS≥'+((sc.epsFloor||0).toFixed(0))+'%  Rev≥'+((sc.revFloor||0).toFixed(0))+'%  FTSE350='+(sc.isFTSE350?'yes':'no')+'</div>'
+    +'</div></details>';
+
+  var scoreHTML = dbg
+    +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Score Breakdown</div>'
     +'<table style="width:100%;border-collapse:collapse;">'
-    +bRow('fc EPS new high '+(d.eps_new_high?'✓':''), epsHB, '+5pts')
-    +bRow('fc Rev new high '+(d.rev_new_high?'✓':''), revHB, '+3pts')
-    +bRow('Standout beat >25% '+(d.standout?'🔥🔥':'—'), 0, 'flag only')
-    +bRow('Broker EPS 1m '+(bEps1m!==null?bEps1m.toFixed(2)+'%':'—'), epsB, bEps1m!==null?'+'+epsB:'—')
-    +bRow('Broker Rev 1m '+(bRev1m!==null?bRev1m.toFixed(2)+'%':'—'), revB, bRev1m!==null?'+'+revB:'—')
-    +bRow('1w momentum (eps='+(bEps1w!==null?bEps1w.toFixed(2)+'%':'—')+')', wkMod, wkMod>0?'+1 mild':wkMod<-1?'−2 sharp':wkMod<0?'−1 mild':'—')
+    +'<tr style="border-bottom:1px solid var(--border);">'
+      +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:left;padding:2px 6px 4px 0;">Component</th>'
+      +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Value</th>'
+      +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 4px;">Wt</th>'
+      +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Score</th>'
+      +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 0 4px 6px;">Note</th></tr>'
+    +sRow('Half beat vs prior yr', pL(sc.halfBeatEps!==null?sc.halfBeatEps:sc.halfBeatRev), effWBeat, sc.cBeat, sc.halfBeatEps!==null?'EPS beat':'Rev beat')
+    +sRow('fc EPS growth', pL(sc.epsGrowthFc), effWEg, sc.cEg, 'capped 4×Rev')
+    +sRow('fc Revenue growth', pL(sc.revGrowthFc), effWRg, sc.cRg, '')
+    +sRow('EPS & Rev breakout', sc.cBreak!==null?((sc.cBreak*2).toFixed(0)+'/2 new highs'):'—', effWBreak, sc.cBreak, 'fc vs prior max')
+    +sRow('Half-yr accel', pL(sc.epsAccH!==null?sc.epsAccH:sc.revAccH), effWAccH, sc.cAccH, 'H1/H2 actuals')
+    +sRow('EPS accel (fc vs act)', pL(sc.epsAccFc), effWAccE, sc.cAccE, 'fc minus act trend')
+    +sRow('Rev accel', pL(sc.revAccH), effWAccR, sc.cAccR, 'H-on-H accel')
+    +'</table>'
+    +'<div style="margin:10px 0 8px;display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;">'
+      +'<span style="font-size:9px;color:var(--text-dim);">Raw score (percentile ranked)</span>'
+      +'<span style="font-size:11px;font-weight:700;color:var(--text-secondary);">'+(sc.rawScore!==null?sc.rawScore.toFixed(1):'—')+'</span>'
+    +'</div>'
+    +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Bonuses</div>'
+    +'<table style="width:100%;border-collapse:collapse;">'
+    +bRow2('fc EPS new high '+(d.eps_new_high?'✓':'—'), epsHB, '+5pts')
+    +bRow2('fc Rev new high '+(d.rev_new_high?'✓':'—'), revHB, '+3pts')
+    +bRow2('Standout beat >25% '+(d.standout?'🔥🔥':'—'), 0, 'flag only')
+    +bRow2('Broker EPS 1m '+(bEps1mSc!==null?bEps1mSc.toFixed(2)+'%':'—'), epsBS, bEps1mSc!==null?'+'+epsBS:'—')
+    +bRow2('Broker Rev 1m '+(bRev1mSc!==null?bRev1mSc.toFixed(2)+'%':'—'), revBS, bRev1mSc!==null?'+'+revBS:'—')
+    +(epsBS>0&&revBS>0?bRow2('Both EPS & Rev upgraded', bothBS, '+2 extra'):'')
+    +bRow2('1w momentum (eps='+(bEps1wSc!==null?bEps1wSc.toFixed(2)+'%':'—')+')', wkMod, wkMod>0?'+1 mild':wkMod<-1?'−2 sharp':wkMod<0?'−1 mild':'—')
     +'</table>'
     +'<div style="margin:8px 0 4px;display:flex;justify-content:space-between;"><span style="font-size:9px;color:var(--text-dim);">Total bonuses</span><span style="font-size:9px;font-weight:700;color:var(--green);">'+(totBonus>0?'+':'')+totBonus+'</span></div>'
     +'<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">'
       +'<span style="font-size:9px;color:var(--text-dim);">Ignition (capped 99)</span>'
       +'<span style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--amber);">'+(d.ignition!==null?d.ignition.toFixed(0):'—')+'</span>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:6px;padding:6px 10px;background:var(--surface2);border-radius:4px;">'
+      +'<span style="font-size:9px;color:var(--text-dim);">MA multiplier ('+(d.lt?1:0)+(d.mt?1:0)+(d.st?1:0)+' rising)</span>'
+      +'<span style="font-size:9px;font-weight:700;color:var(--text-secondary);">× '+([d.lt,d.mt,d.st].filter(function(v){return v===true;}).length===3?'1.00':[d.lt,d.mt,d.st].filter(function(v){return v===true;}).length===2?'0.85':[d.lt,d.mt,d.st].filter(function(v){return v===true;}).length===1?'0.70':'0.55')+'</span>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;margin-top:4px;padding:6px 10px;background:var(--green-dim);border:1px solid rgba(16,185,129,0.2);border-radius:4px;">'
+      +'<span style="font-size:9px;color:var(--green);">Rank</span>'
+      +'<span style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--green);">'+(d.rank!==null?d.rank.toFixed(0):'—')+'</span>'
     +'</div>';
 
   var html=
