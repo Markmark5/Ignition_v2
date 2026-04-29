@@ -605,41 +605,85 @@ function parseWeeklySnapshotText(text){
     var wsEnd  = block.indexOf('============================================================', wsStart);
     var wsText = wsEnd === -1 ? block.substring(wsStart) : block.substring(wsStart, wsEnd);
     var snap   = parseSnapshotBlock(wsText, tidm);
-    if(snap){ data[tidm] = snap; if(snap.latestDate > latestDate) latestDate = snap.latestDate; }
+    if(snap){
+      data[tidm] = snap;
+      if(snap.latestDate > latestDate) latestDate = snap.latestDate;
+    }
   }
   return { data:data, latestDate:latestDate };
 }
 
 function parseSnapshotBlock(wsText, tidm){
-  var lines  = wsText.split(/\r?\n/), rows = [], inData = false;
+  var lines   = wsText.split(/\r?\n/);
+  var rows    = [];
+  var inData  = false;
+
+  // Detect column positions from the header line so we handle blank columns correctly.
+  // ShareScope uses fixed-width columns — blank fields leave only spaces.
+  // Fixes: negative EPS (-105.7), Rev-only (AAZ), EPS-only (ARBB), price-only (88E), all-blank.
+  var epsCol = 18, revCol = 25, priceCol = 36; // safe defaults matching "Date              EPS    Rev(m)     Price"
   for(var i = 0; i < lines.length; i++){
-    var line = lines[i];
+    if(/EPS.*Rev.*Price/.test(lines[i])){
+      epsCol   = lines[i].indexOf('EPS');
+      revCol   = lines[i].indexOf('Rev');
+      priceCol = lines[i].indexOf('Price');
+      break;
+    }
+  }
+
+  function parseRow(line){
+    // Strip trailing annotation (◄ earliest / ◄ latest)
+    var clean = line.replace(/\s*◄.*$/, '');
+    if(clean.length < 8) return null;
+    // Date must start the line
+    var dateM = clean.match(/^(\d{1,2}\s+\w{3}\s+\d{2})/);
+    if(!dateM) return null;
+    function slice(from, to){ return to ? clean.slice(from, to).trim().replace(/[£p]/g,'') : clean.slice(from).trim().replace(/[£p]/g,''); }
+    function pf(s){ var n=parseFloat(s); return isNaN(n)?null:n; }
+    return {
+      date:  dateM[1],
+      eps:   pf(slice(epsCol,   revCol)),
+      rev:   pf(slice(revCol,   priceCol)),
+      price: pf(slice(priceCol)),
+    };
+  }
+
+  for(var j = 0; j < lines.length; j++){
+    var line = lines[j];
     if(/^-{20,}/.test(line)){ inData = !inData; continue; }
     if(!inData || /^\s*Date\s+EPS/.test(line)) continue;
-    var m = line.match(/^\s*(\d{1,2}\s+\w+\s+\d{2})\s+([\d.]+)\s+([\d.]+)\s+[£]?([\d.]+)p?/);
-    if(m) rows.push({ date:m[1].trim(), eps:parseFloat(m[2]), rev:parseFloat(m[3]), price:parseFloat(m[4]) });
+    var r = parseRow(line);
+    if(r) rows.push(r);
   }
-  if(!rows.length) return null;
 
+  // Always return a record even if all EPS/Rev values are null —
+  // ticker still counted, broker trend / price data preserved.
   var epsNetM   = wsText.match(/EPS net change \(full period\)\s*:\s*([+-]?[\d.]+%)/);
   var epsTrendM = wsText.match(/EPS last-4-week trend\s*:\s*(\w+)/);
-  var earliest  = rows[0], latest = rows[rows.length-1];
-  var ref4w     = rows.length >= 4 ? rows[rows.length-4] : rows[0];
-  var ref1w     = rows.length >= 2 ? rows[rows.length-2] : rows[0];
-  function pct(a,b){ return a!==0?((b-a)/Math.abs(a))*100:0; }
+  var earliest  = rows[0]||null;
+  var latest    = rows[rows.length-1]||null;
+  var ref4w     = rows.length >= 4 ? rows[rows.length-4] : (rows[0]||null);
+  var ref1w     = rows.length >= 2 ? rows[rows.length-2] : (rows[0]||null);
+
+  function safePct(refVal, latVal){
+    if(refVal===null||latVal===null||refVal===0) return null;
+    return ((latVal - refVal) / Math.abs(refVal)) * 100;
+  }
 
   return {
     tidm:        tidm,
     rows:        rows,
-    latestDate:  latest.date,
-    eps_latest:  latest.eps,   rev_latest:  latest.rev,
-    eps_earliest:earliest.eps, rev_earliest:earliest.rev,
+    latestDate:  latest ? latest.date : '',
+    eps_latest:  latest ? latest.eps  : null,
+    rev_latest:  latest ? latest.rev  : null,
+    eps_earliest:earliest ? earliest.eps : null,
+    rev_earliest:earliest ? earliest.rev : null,
     eps_net_pct: epsNetM  ? epsNetM[1]  : null,
-    eps_trend:   epsTrendM? epsTrendM[1]: null,  // RISING | FLAT | FALLING
-    eps_1m_pct:  pct(ref4w.eps, latest.eps),
-    rev_1m_pct:  pct(ref4w.rev, latest.rev),
-    eps_1w_pct:  pct(ref1w.eps, latest.eps),
-    rev_1w_pct:  pct(ref1w.rev, latest.rev),
+    eps_trend:   epsTrendM? epsTrendM[1]: null,  // RISING | FLAT | FALLING | null
+    eps_1m_pct:  ref4w && latest ? safePct(ref4w.eps, latest.eps) : null,
+    rev_1m_pct:  ref4w && latest ? safePct(ref4w.rev, latest.rev) : null,
+    eps_1w_pct:  ref1w && latest ? safePct(ref1w.eps, latest.eps) : null,
+    rev_1w_pct:  ref1w && latest ? safePct(ref1w.rev, latest.rev) : null,
   };
 }
 
