@@ -1499,13 +1499,23 @@ function ignRender(filterQ){
     var pos       = idx+1;
     var rankCol   = d.rank>=70?'var(--green)':d.rank>=45?'var(--amber)':'var(--red)';
     var barPct    = Math.min(100,(d.rank/maxRank)*100);
-    var sharesCol = d.shares!==null?(d.shares<SHARES_LOW?'var(--green)':d.shares<=SHARES_HIGH?'var(--amber)':'var(--red)'):'var(--text-dim)';
+    // Shares — Low/Mid/High label with colour, matching V1
+    var sharesLabel, sharesCol;
+    if(d.shares===null){ sharesLabel='—'; sharesCol='var(--text-dim)'; }
+    else if(d.shares<SHARES_LOW){ sharesLabel='Low'; sharesCol='var(--green)'; }
+    else if(d.shares>SHARES_HIGH){ sharesLabel='High'; sharesCol='var(--red)'; }
+    else { sharesLabel='Mid'; sharesCol='var(--amber)'; }
     var rsiCol    = d.rsi!==null?(d.rsi>=60?'var(--amber)':d.rsi<=35?'var(--blue)':'var(--text-secondary)'):'var(--text-dim)';
     var capStr    = d.mktcap!==null?(d.mktcap>=1000?(d.mktcap/1000).toFixed(1)+'b':d.mktcap.toFixed(0)+'m'):'—';
-    var momStr = d.brokerMom!==null?((d.brokerMom>0?'+':'')+d.brokerMom.toFixed(1)+'%'):'—';
-    var momCol = d.brokerMom!==null?(d.brokerMom>0?'var(--green)':d.brokerMom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
-    var momCell= momStr + (d.brokerFlag?' '+d.brokerFlag:'');
-    var tidmCell = escHtml(d.tidm)+(d.acqnFlag?' <span style="color:var(--red);font-size:9px;">⚑</span>':'');
+    // Broker mom — flag on left, % on right
+    var momPct  = d.brokerMom!==null?((d.brokerMom>0?'+':'')+d.brokerMom.toFixed(1)+'%'):'—';
+    var momCol  = d.brokerMom!==null?(d.brokerMom>0?'var(--green)':d.brokerMom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
+    var momCell = (d.brokerFlag?'<span style="font-size:11px;">'+d.brokerFlag+'</span> ':'')
+                + '<span style="color:'+momCol+';">'+momPct+'</span>';
+    // TIDM — amber, bold, 13px matching V1, with flag slots
+    var tidmCell = '<span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);font-size:13px;">'
+      +escHtml(d.tidm)+'</span>'
+      +(d.acqnFlag?' <span style="color:var(--red);font-size:10px;">⚑</span>':'');
     function maCell(v){ return '<td class="'+(v===true?'ma-on':v===false?'ma-off':'ma-nil')+'" style="font-size:10px;text-align:center;">'+(v===true?'✓':v===false?'✗':'·')+'</td>'; }
 
     html+='<tr class="tr-data" ondblclick="ignOpenPopup(\''+d.tidm+'\')">'
@@ -1523,9 +1533,9 @@ function ignRender(filterQ){
       +'</div></td>'
       +maCell(d.lt)+maCell(d.mt)+maCell(d.st)
       +'<td style="color:'+rsiCol+';font-size:10px;">'+(d.rsi!==null?d.rsi.toFixed(0):'—')+'</td>'
-      +'<td style="color:'+momCol+';font-size:10px;border-left:1px solid var(--border);">'+momCell+'</td>'
+      +'<td style="font-size:10px;border-left:1px solid var(--border);white-space:nowrap;"><div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">'+momCell+'</div></td>'
       +'<td style="font-size:10px;border-left:1px solid var(--border);">'+capStr+'</td>'
-      +'<td style="font-size:10px;color:'+sharesCol+';">'+(d.shares!==null?d.shares.toFixed(0)+'m':'—')+'</td>'
+      +'<td style="font-size:10px;font-weight:600;color:'+sharesCol+';" title="'+(d.shares!==null?Math.round(d.shares)+'m':'')+'">'+sharesLabel+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.idx_mem||'')+'</td>'
       +'</tr>';
   });
