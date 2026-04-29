@@ -215,6 +215,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
   </label>
   <span id="ws-file-name" style="font-size:9px;color:var(--text-dim);">—</span>
   <button class="btn btn-ghost" id="ws-gh-btn"    onclick="openGitHubPanel()" style="font-size:9px;padding:4px 10px;display:none;">☁ GitHub Sync</button>
+  <button class="btn btn-ghost" id="ws-push-btn"  onclick="ghPushWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">⬆ Push to GitHub</button>
   <button class="btn btn-ghost" id="ws-clear-btn" onclick="clearWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">✕ Clear</button>
   <span id="ws-ticker-count" style="font-size:9px;color:var(--green);display:none;"></span>
 </div>
@@ -619,22 +620,26 @@ function refreshData(){
   for(var i = 1; i <= NUM_URLS; i++) setUrlIcon(i, '·', '');
 
   var allRows = [], pending = active.length, errors = 0;
+
   active.forEach(function(entry){
-    var groupIdx = FEED_GROUP[entry.idx-1]; // 0=A,1=B,2=C,3=D,-1=spare
+    var groupIdx    = FEED_GROUP[entry.idx-1];
     var groupLetter = ['a','b','c','d'][groupIdx] || 'spare';
-    fetch(entry.url)
-      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
-      .then(function(text){
-        var rows = parseCsvIndexed(text, groupLetter);
-        allRows = allRows.concat(rows);
-        setUrlIcon(entry.idx, '✓', 'var(--green)');
-      })
-      .catch(function(e){
-        errors++;
-        setUrlIcon(entry.idx, '✗', 'var(--red)');
-        console.warn('URL '+entry.idx+':', e.message);
-      })
-      .finally(function(){ if(--pending === 0) onDataLoaded(allRows, errors, active.length); });
+    // ── capture both entry and groupLetter in an IIFE to avoid closure bug ──
+    (function(capturedEntry, capturedGroup){
+      fetch(capturedEntry.url)
+        .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+        .then(function(text){
+          var rows = parseCsvIndexed(text, capturedGroup);
+          allRows = allRows.concat(rows);
+          setUrlIcon(capturedEntry.idx, '✓', 'var(--green)');
+        })
+        .catch(function(e){
+          errors++;
+          setUrlIcon(capturedEntry.idx, '✗', 'var(--red)');
+          console.warn('URL '+capturedEntry.idx+':', e.message);
+        })
+        .finally(function(){ if(--pending === 0) onDataLoaded(allRows, errors, active.length); });
+    })(entry, groupLetter);
   });
 }
 
@@ -667,8 +672,6 @@ function onDataLoaded(rows, errors, total){
   document.getElementById('last-refresh').textContent = 'Updated '+ts;
   document.getElementById('run-btn').style.display = '';
   showToast('✓ Data loaded — '+count+' tickers'+(errors?' ('+errors+' errors)':''),'ok');
-  // Auto-open URL panel so tick/cross status is immediately visible
-  document.getElementById('url-panel').classList.add('open');
   restoreUrlIcons();
   updateLatestDataTime();
   ignRun();
@@ -813,6 +816,7 @@ function setWsLoaded(fname, count, date){
   document.getElementById('ws-status').textContent      = count+' tickers'+(date?' · '+date:'');
   document.getElementById('ws-file-name').textContent   = fname||'—';
   document.getElementById('ws-gh-btn').style.display    = '';
+  document.getElementById('ws-push-btn').style.display  = '';
   document.getElementById('ws-clear-btn').style.display = '';
   var b = document.getElementById('ws-ticker-count');
   b.textContent = count+' tickers parsed'; b.style.display = '';
@@ -825,6 +829,7 @@ function clearWeeklySnapshot(){
   document.getElementById('ws-status').textContent      = 'Weekly Snapshot not loaded';
   document.getElementById('ws-file-name').textContent   = '—';
   document.getElementById('ws-gh-btn').style.display    = 'none';
+  document.getElementById('ws-push-btn').style.display  = 'none';
   document.getElementById('ws-clear-btn').style.display = 'none';
   document.getElementById('ws-ticker-count').style.display = 'none';
   showToast('Weekly Snapshot cleared','warn');
@@ -839,6 +844,7 @@ function loadCachedWeeklySnapshot(){
     document.getElementById('ws-dot').className      = 'status-dot';
     document.getElementById('ws-status').textContent = 'Cached · '+count+' tickers'+(result.latestDate?' · '+result.latestDate:'');
     document.getElementById('ws-gh-btn').style.display    = '';
+    document.getElementById('ws-push-btn').style.display  = '';
     document.getElementById('ws-clear-btn').style.display = '';
     var b = document.getElementById('ws-ticker-count');
     b.textContent = count+' tickers (cached)'; b.style.display = '';
@@ -926,7 +932,24 @@ function ghFetchWeeklySnapshot(silent){
     });
 }
 
-// Push today's rank positions — requires token
+// Push Weekly Snapshot .txt to GitHub
+function ghPushWeeklySnapshot(){
+  var token = ls(K.GH_TOKEN), repo = ls(K.GH_REPO), path = ls(K.GH_PATH)||'data/weekly_snapshot.txt';
+  if(!token){ showToast('Token required to push — open ☁ GitHub to add it','warn',4000); return; }
+  if(!repo){ showToast('Repo required — open ☁ GitHub','warn'); return; }
+  var raw = ls(K.WS);
+  if(!raw){ showToast('No Weekly Snapshot loaded to push','warn'); return; }
+  ghStatus('⏳ Pushing Weekly Snapshot…');
+  showToast('⏳ Pushing Weekly Snapshot…','ok');
+  var now   = new Date();
+  var label = now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+' '+fmtTime();
+  ghPut(token, repo, path, raw, 'IgnitionV2 weekly snapshot '+label)
+    .then(function(){
+      ghStatus('✓ Weekly Snapshot pushed · '+label);
+      showToast('✓ Weekly Snapshot pushed to GitHub · '+label,'ok');
+    })
+    .catch(function(e){ ghStatus('✗ '+e.message); showToast('Push failed: '+e.message,'err',4000); });
+}
 function ghPushRankSnapshot(){
   if(!ignData.length){ showToast('Run scores first — no ranked data to push','warn'); return; }
   var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO), path=ls(K.GH_SNAP)||'data/rank_snapshot.json';
