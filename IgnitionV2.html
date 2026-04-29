@@ -417,6 +417,7 @@ var SHARES_HIGH = 495;
 // Runtime state
 var liveData      = {};
 var weeklySnap    = {};
+var wsRawText     = '';   // raw .txt held in memory for push — survives localStorage full
 var ignData       = [];
 var ignSortKey    = 'rank';
 var ignSortAsc    = false;
@@ -707,9 +708,10 @@ function loadWeeklySnapshot(input){
 }
 
 function processWeeklySnapshot(text, fname){
+  wsRawText  = text;          // keep in memory regardless of localStorage
   var result = parseWeeklySnapshotText(text);
   weeklySnap = result.data;
-  lsSet(K.WS, text);
+  lsSet(K.WS, text);          // also try localStorage (may fail if full — that's ok)
   setWsLoaded(fname, Object.keys(weeklySnap).length, result.latestDate);
   if(Object.keys(liveData).length) ignRun();
 }
@@ -824,7 +826,7 @@ function setWsLoaded(fname, count, date){
 }
 
 function clearWeeklySnapshot(){
-  weeklySnap = {}; lsDel(K.WS);
+  weeklySnap = {}; wsRawText = ''; lsDel(K.WS);
   document.getElementById('ws-dot').className           = 'status-dot';
   document.getElementById('ws-status').textContent      = 'Weekly Snapshot not loaded';
   document.getElementById('ws-file-name').textContent   = '—';
@@ -837,6 +839,7 @@ function clearWeeklySnapshot(){
 
 function loadCachedWeeklySnapshot(){
   var raw = ls(K.WS); if(!raw) return;
+  wsRawText = raw;
   try{
     var result = parseWeeklySnapshotText(raw);
     weeklySnap = result.data;
@@ -937,7 +940,7 @@ function ghPushWeeklySnapshot(){
   var token = ls(K.GH_TOKEN), repo = ls(K.GH_REPO), path = ls(K.GH_PATH)||'data/weekly_snapshot.txt';
   if(!token){ showToast('Token required to push — open ☁ GitHub to add it','warn',4000); return; }
   if(!repo){ showToast('Repo required — open ☁ GitHub','warn'); return; }
-  var raw = ls(K.WS);
+  var raw = wsRawText || ls(K.WS);
   if(!raw){ showToast('No Weekly Snapshot loaded to push','warn'); return; }
   ghStatus('⏳ Pushing Weekly Snapshot…');
   showToast('⏳ Pushing Weekly Snapshot…','ok');
@@ -1405,14 +1408,14 @@ function ignRun(){
     // If excluded (hard filter ON + hardFail set) → rank = 0 but keep in list
     if(c.excluded){ ignition=Math.min(99,Math.round(raw*0.90*lossMult*revFloorMult+bonus+bkBonus)); rank=0; }
 
-    c.ignition   = ignition;
-    c.rank       = rank;
-    c.lossMult   = lossMult;
+    c.ignition     = ignition;
+    c.rank         = rank;
+    c.lossMult     = lossMult;
     c.revFloorMult = revFloorMult;
-    c.bkBonus    = bkBonus;
-    c.brokerMom  = bEps1m!==null ? bEps1m : bRev1m;  // live from D·L / D·K
-    c.brokerFlag = (epsBonus>0||revBonus>0)?(c.standout?'🔥🔥':'🔥'):'';
-    c._w         = w; // store for scorecard breakdown
+    c.bkBonus      = bkBonus;
+    c.brokerMom    = c.bEps1m!==null ? c.bEps1m : c.bRev1m;
+    c.brokerFlag   = (epsBonus>0||revBonus>0)?(c.standout?'🔥🔥':'🔥'):'';
+    c._w           = w;
   });
 
   ignData = cands;
