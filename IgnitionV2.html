@@ -423,6 +423,10 @@ var prevRanksDate = '';   // ISO date of prevRanks
 
 // ── Init ──
 (function init(){
+  // Clear any old partial URL saves so presets load cleanly
+  var saved = []; try{ saved = JSON.parse(ls(K.URLS)); }catch(e){}
+  if(saved.length > 0 && saved.length < NUM_URLS) lsDel(K.URLS);
+
   buildUrlList();
   loadSavedUrls();
   updateUrlCountBadge();
@@ -517,14 +521,28 @@ function buildUrlList(){
 }
 
 function loadSavedUrls(){
+  // Presets are the source of truth. A user-saved value only wins if the saved
+  // array covers all NUM_URLS slots — preventing old partial saves from blocking loads.
   var saved = []; try{ saved = JSON.parse(ls(K.URLS)); }catch(e){}
+  var savedFull = saved.length >= NUM_URLS;
   for(var i = 1; i <= NUM_URLS; i++){
     var el = document.getElementById('url-'+i);
     if(!el) continue;
-    // Use saved value, else fall back to hardcoded preset
-    var v = (saved[i-1]!==undefined ? saved[i-1] : '') || PRESET_URLS[i-1] || '';
-    el.value = v;
+    var savedVal = (savedFull && saved[i-1]) ? saved[i-1] : '';
+    el.value = savedVal || PRESET_URLS[i-1] || '';
   }
+}
+
+function getActiveUrls(){
+  // Read from DOM only — presets are always written to DOM at init,
+  // so no need to fall back to localStorage here.
+  var active = [];
+  for(var i = 1; i <= NUM_URLS; i++){
+    var el = document.getElementById('url-'+i);
+    var v  = el ? el.value.trim() : '';
+    if(v) active.push({ idx:i, url:v });
+  }
+  return active;
 }
 
 function saveUrls(){
@@ -539,22 +557,11 @@ function saveUrls(){
 }
 
 function clearAllUrls(){
-  if(!confirm('Clear all '+NUM_URLS+' URL slots?')) return;
-  for(var i = 1; i <= NUM_URLS; i++){ var el = document.getElementById('url-'+i); if(el) el.value = ''; }
+  if(!confirm('Clear all '+NUM_URLS+' URL slots and reset to presets?')) return;
   lsDel(K.URLS);
+  loadSavedUrls(); // reloads presets into DOM
   updateUrlCountBadge();
-  showToast('URL slots cleared','warn');
-}
-
-function getActiveUrls(){
-  var saved = []; try{ saved = JSON.parse(ls(K.URLS)); }catch(e){}
-  var active = [];
-  for(var i = 1; i <= NUM_URLS; i++){
-    var el = document.getElementById('url-'+i);
-    var v  = (el ? el.value.trim() : '') || (saved[i-1]||'');
-    if(v) active.push({ idx:i, url:v });
-  }
-  return active;
+  showToast('Reset to preset URLs','ok');
 }
 
 function updateUrlCountBadge(){
