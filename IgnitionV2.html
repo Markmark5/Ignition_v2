@@ -244,7 +244,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
     </div>
     <div>
       <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Repository (owner/repo)</div>
-      <input id="gh-repo" type="text" placeholder="username/my-ignition-data"
+      <input id="gh-repo" type="text" placeholder="username/my-ignition-data" value="markmark5/Ignition_v2"
         style="width:100%;background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;padding:7px 10px;border-radius:4px;outline:none;"
         onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor=''">
     </div>
@@ -482,6 +482,8 @@ var FEED_GROUP = [0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3, -1];
   loadGitHubConfig();
   loadCachedWeeklySnapshot();
   updateWeightBadge();
+  var defaultRepo = 'markmark5/Ignition_v2';
+  if(!ls(K.GH_REPO)) lsSet(K.GH_REPO, defaultRepo); // pre-seed on first visit
   if(ls(K.GH_REPO)){
     ghFetchWeeklySnapshot(true);   // no token needed
     ghFetchRankSnapshot(true);     // no token needed
@@ -859,7 +861,13 @@ function closeGitHubPanel(){
 
 function loadGitHubConfig(){
   var map = { 'gh-token':K.GH_TOKEN, 'gh-repo':K.GH_REPO, 'gh-path':K.GH_PATH, 'gh-snap-path':K.GH_SNAP };
-  for(var id in map){ var el=document.getElementById(id); if(el) el.value=ls(map[id]); }
+  for(var id in map){
+    var el = document.getElementById(id); if(!el) continue;
+    var saved = ls(map[id]);
+    // gh-repo defaults to your repo if nothing saved yet
+    if(!saved && id==='gh-repo') saved = 'markmark5/Ignition_v2';
+    if(saved) el.value = saved;
+  }
   loadPrevRanks();
   updateGhLastPushInfo();
 }
@@ -1082,10 +1090,6 @@ function colS(row, letter){
   return (row['__col'+idx]||'').trim();
 }
 
-// ═══════════════════════════════════════════════════════════
-// SCORING ENGINE
-// Sections: EPS → Revenue → MA/Trend → Broker → Rank
-// ═══════════════════════════════════════════════════════════
 function ignRun(){
   ignData = [];
   if(!Object.keys(liveData).length){ ignRender(); return; }
@@ -1096,312 +1100,307 @@ function ignRun(){
   var aimRev  = parseFloat(document.getElementById('ign-aim-rev').value)||5;
   var exclLT  = document.getElementById('ign-excl-lt').checked;
   var hardF   = document.getElementById('ign-hard-filter').checked;
-  var wBeat   = (parseFloat(document.getElementById('w-beat').value)||25)/100;
-  var wEg     = (parseFloat(document.getElementById('w-eg').value)||20)/100;
-  var wRg     = (parseFloat(document.getElementById('w-rg').value)||20)/100;
-  var wBreak  = 0.12, wAccH = 0.10, wAccE = 0.08, wAccR = 0.05;
 
-  var rawScores = [];
+  // ── Weights — exactly matching V1 scaling ──
+  var wBeat = Math.max(5,Math.min(60,parseFloat(document.getElementById('w-beat').value)||25))/100;
+  var wEg   = Math.max(5,Math.min(50,parseFloat(document.getElementById('w-eg').value)||20))/100;
+  var wRg   = Math.max(5,Math.min(50,parseFloat(document.getElementById('w-rg').value)||20))/100;
+  var wFixed = 1 - (wBeat+wEg+wRg);
+  var wScale = wFixed / 0.35; // scale the fixed-weight components proportionally
+  var BASE_W = { eg:wEg, rg:wRg, ea:0.08*wScale, ra:0.05*wScale,
+                 bp:wBeat, bk:0.12*wScale, ha:0.10*wScale };
+
+  // ── Per-ticker helpers (mirrors V1 ignF / ignGrowthPct / ignHalfBeat) ──
+  function ignGrowthPct(cur, fc){
+    if(cur===null||fc===null) return null;
+    if(cur>0) return (fc/cur-1)*100;
+    if(cur<0&&fc>0) return Math.abs(fc-cur)/Math.abs(cur)*100;
+    if(cur<0&&fc<0) return (cur/fc-1)*100;
+    return null;
+  }
+  // percentile rank of val within arr (0-100)
+  function ignPct(arr, val){
+    if(!arr.length||val===null) return 50;
+    var b=0; for(var i=0;i<arr.length;i++){ if(arr[i]<val) b++; }
+    return (b/arr.length)*100;
+  }
+  function ignIs350(idx){ return !!(idx&&(idx.indexOf('FTSE 100')!==-1||idx.indexOf('FTSE 250')!==-1)); }
+
+  // ── Build per-ticker candidates (V1 structure) ──
+  var cands = [];
 
   Object.keys(liveData).forEach(function(tid){
-    var d = liveData[tid];
-    var a = d.a, b = d.b, c = d.c, dp = d.d;
+    var d  = liveData[tid];
+    var a  = d.a, b = d.b, c = d.c, dp = d.d;
     var ws = weeklySnap[tid]||null;
 
     // ── GROUP A: Turnover + EPS ──────────────────────────────
-    // Turnover history (half-years)
-    var rev3H1 = col(a,'E'), rev3H2 = col(a,'F');
-    var rev2H1 = col(a,'G'), rev2H2 = col(a,'H');
-    var rev1H1 = col(a,'I'), rev1H2 = col(a,'J');
-    var revH1  = col(a,'K'), revH2  = col(a,'L');
-    var revFc  = col(a,'M'), revFc2 = col(a,'N');
-    // FY turnover
-    var rev2FY = col(a,'Y'), rev1FY = col(a,'Z'), revFY = col(a,'AA');
-    // EPS history (half-years)
-    var eps3H1 = col(a,'O'), eps3H2 = col(a,'P');
-    var eps2H1 = col(a,'Q'), eps2H2 = col(a,'R');
-    var eps1H1 = col(a,'S'), eps1H2 = col(a,'T');
-    var epsH1  = col(a,'U'), epsH2  = col(a,'V');
-    var epsFc  = col(a,'W'), epsFc2 = col(a,'X');
-    // FY EPS
-    var eps2FY = col(a,'AB'), eps1FY = col(a,'AC'), epsFY = col(a,'AD');
+    var rev3H1=col(a,'E'), rev3H2=col(a,'F');
+    var rev2H1=col(a,'G'), rev2H2=col(a,'H');
+    var rev1H1=col(a,'I'), rev1H2=col(a,'J');
+    var revH1 =col(a,'K'), revH2 =col(a,'L');
+    var revFc =col(a,'M'), revFc2=col(a,'N');
+    var rev2FY=col(a,'Y'), rev1FY=col(a,'Z'), revFY=col(a,'AA');
 
-    // ── GROUP B: EBITDA + PTP + price metadata ───────────────
-    var idx_mem = colS(b,'X');
-    var shares  = col(b,'Y');
-    var close   = col(b,'AB');
-    var price   = col(b,'AC');
+    var eps3H1=col(a,'O'), eps3H2=col(a,'P');
+    var eps2H1=col(a,'Q'), eps2H2=col(a,'R');
+    var eps1H1=col(a,'S'), eps1H2=col(a,'T');
+    var epsH1 =col(a,'U'), epsH2 =col(a,'V');
+    var epsFc =col(a,'W'), epsFc2=col(a,'X');
+    var eps2FY=col(a,'AB'), eps1FY=col(a,'AC'), epsFY=col(a,'AD');
+
+    // ── GROUP B: price metadata ───────────────────────────────
+    var idx_mem=colS(b,'X');
+    var shares =col(b,'Y');
+    var close  =col(b,'AB');
+    var price  =col(b,'AC');
 
     // ── GROUP C: Debt + Sector + MCap ───────────────────────
-    var sector  = colS(c,'AC');
-    var mktcap  = col(c,'AD');
-    var acqn    = col(c,'AB');  // Acquisitions (m)
+    var sector =colS(c,'AC');
+    var mktcap =col(c,'AD');
+    var acqn   =col(c,'AB');
 
-    // ── GROUP D: Price / Volume / Trend / MA / RSI ──────────
-    var ma21    = col(dp,'Q');  // 21d MA value (unused in signals — kept for scorecard reference)
-    var rsi     = col(dp,'U');
-    var newHigh = colS(dp,'V');
-    var stTrend = colS(dp,'N');   // Short Term Trend (text)
-    var secTrend= colS(dp,'O');   // Secondary Trend (text)
-    var ltTrend = colS(dp,'P');   // Long Term Trend (text)
-    var upgEps1w= col(dp,'I');    // fc EPS upgrade % 1w
-    var upgRev1w= col(dp,'H');    // fc Turnover upgrade % 1w
-    var upgEps1m= col(dp,'L');    // fc EPS upgrade % 1m
-    var upgRev1m= col(dp,'K');    // fc Turnover upgrade % 1m
+    // ── GROUP D: MA flags + RSI + upgrades ──────────────────
+    var rsi     =col(dp,'U');
+    var newHigh =colS(dp,'V');
+    var upgEps1w=col(dp,'I'), upgRev1w=col(dp,'H');
+    var upgEps1m=col(dp,'L'), upgRev1m=col(dp,'K');
+
+    // MA flags: "1" = rising, blank = falling
+    // D col N = Short Term (50d), O = Mid Term (100d), P = Long Term (200d)
+    var ltOk = colS(dp,'P')==='1' ? true : false;  // 200d Long Term
+    var mtOk = colS(dp,'O')==='1' ? true : false;  // 100d Mid Term
+    var stOk = colS(dp,'N')==='1' ? true : false;  // 50d Short Term
+    // treat null group D (no data yet) as unknown rather than false
+    if(!dp){ ltOk=null; mtOk=null; stOk=null; }
 
     // ── META ─────────────────────────────────────────────────
-    var name   = colS(a,'B');
-    var yr_end = colS(a,'C');
-    var qtr    = colS(a,'D');
+    var name  =colS(a,'B');
+    var yr_end=colS(a,'C');
+    var qtr   =colS(a,'D');
 
-    // ── BROKER MOMENTUM (from Weekly Snapshot only) ──────────
-    var bEps1m = ws ? ws.eps_1m_pct : null;
-    var bRev1m = ws ? ws.rev_1m_pct : null;
-    var bEps1w = ws ? ws.eps_1w_pct : null;
-    var bTrend = ws ? ws.eps_trend  : null;
+    // ── BROKER MOMENTUM ───────────────────────────────────────
+    // V1: bk_eps_1m = Weekly Snapshot eps_1m_pct (from .txt)
+    //     bk_eps_1w = Weekly Snapshot eps_1w_pct
+    //     bk_rev_1m = Weekly Snapshot rev_1m_pct
+    //     bk_rev_1w = Weekly Snapshot rev_1w_pct
+    // Fallback to Group D upgrade % if no snapshot loaded
+    var bEps1m = ws ? ws.eps_1m_pct : (upgEps1m!==null ? upgEps1m : null);
+    var bRev1m = ws ? ws.rev_1m_pct : (upgRev1m!==null ? upgRev1m : null);
+    var bEps1w = ws ? ws.eps_1w_pct : (upgEps1w!==null ? upgEps1w : null);
+    var bRev1w = ws ? ws.rev_1w_pct : (upgRev1w!==null ? upgRev1w : null);
 
-    // ── MA SIGNALS ───────────────────────────────────────────
-    // Group D cols Q/R/S/T = MA trend flags: "1" = rising, blank = falling
-    // Question: "is this MA higher than last week?" — 1=yes, blank=no
-    var ltOk = colS(dp,'T') === '1' ? true : colS(dp,'T') === '' ? false : null; // 200d MA
-    var mtOk = colS(dp,'S') === '1' ? true : colS(dp,'S') === '' ? false : null; // 100d MA
-    var stOk = colS(dp,'R') === '1' ? true : colS(dp,'R') === '' ? false : null; // 50d MA
+    // ── INDEX ────────────────────────────────────────────────
+    var f350   = ignIs350(idx_mem);
+    var eFloor = f350 ? f350eps : aimEps;
+    var rFloor = f350 ? f350rev : aimRev;
 
-    var maCount = [ltOk,mtOk,stOk].filter(function(v){ return v===true; }).length;
-    var maMult  = maCount===3?1.00:maCount===2?0.85:maCount===1?0.70:0.55;
+    // ── FC GROWTH — V1 ignGrowthPct logic ────────────────────
+    // V1 uses f5.eps_act (FY EPS) and f5.fc_eps directly
+    // In V2: eps1FY = 1y ago FY EPS = last completed FY = V1's eps_act
+    //        epsFY  = current FY EPS (only complete at Q4/Q1)
+    //        epsFc  = fc EPS = V1's fc_eps
+    // Q2/Q3 (H1 reporting): current FY not yet complete → use 1y ago as base
+    // Q4/Q1 (H2 reporting): current FY complete → use epsFY as base
+    var useH1  = (qtr==='Q2'||qtr==='Q3');
+    var epsAct = useH1 ? eps1FY : (epsFY!==null ? epsFY : eps1FY);  // V1: f5.eps_act
+    var revAct = useH1 ? rev1FY : (revFY!==null ? revFY : rev1FY);  // V1: f5.rev_act
 
-    // ── HARD EXCLUSIONS ──────────────────────────────────────
-    var isFTSE350 = /FTSE 350|FTSE350|FTSE100|FTSE 100|FTSE250|FTSE 250/i.test(idx_mem);
-    var epsFloor  = isFTSE350 ? f350eps : aimEps;
-    var revFloor  = isFTSE350 ? f350rev : aimRev;
+    var fcEpsG = ignGrowthPct(epsAct, epsFc);
+    var fcRevG = (revAct!==null&&revAct>0&&revFc!==null) ? ((revFc/revAct-1)*100) : null;
 
-    var excluded = false;
-    if(hardF){
-      // fc EPS must be positive and meet floor growth vs last FY
-      if(epsFc !== null && eps1FY !== null && eps1FY > 0){
-        var epsGrowthFc = ((epsFc - eps1FY)/Math.abs(eps1FY))*100;
-        if(epsGrowthFc < epsFloor) excluded = true;
-      }
-      // fc Rev must grow vs last FY
-      if(!excluded && revFc !== null && rev1FY !== null && rev1FY > 0){
-        var revGrowthFc = ((revFc - rev1FY)/Math.abs(rev1FY))*100;
-        if(revGrowthFc < revFloor) excluded = true;
-      }
-      // Excl falling 200d
-      if(!excluded && exclLT && ltOk === false) excluded = true;
+    // ── HARD FILTER — V1 checks ───────────────────────────────
+    var hardFail = null;
+    if(fcEpsG===null||fcRevG===null) hardFail='No forecast data';
+    if(!hardFail&&(fcEpsG<eFloor||fcRevG<rFloor)) hardFail='Below growth floor';
+    // fc not growing vs act
+    if(!hardFail&&epsAct&&epsFc&&epsAct>0&&epsFc<=epsAct) hardFail='fc EPS not growing';
+    if(!hardFail&&revAct&&revFc&&revAct>0&&revFc<=revAct) hardFail='fc Rev not growing';
+    // FY2 cliff >-15% at Q2/Q3
+    if(!hardFail&&useH1&&epsFc2!==null&&epsFc!==null&&epsFc>0&&(epsFc2/epsFc-1)*100<-15)
+      hardFail='FY2 cliff >-15%';
+    if(hardFail&&hardF) return; // skip — V1 uses continue, V2 uses return in forEach
+
+    // exclLT is independent of hard filter in V1
+    if(!dp&&exclLT) return; // no D data = can't confirm MA
+    if(exclLT&&ltOk===false) return;
+
+    // ── fc EPS cap — V1 logic ─────────────────────────────────
+    // cap = max(50, revG*4) if revG>0, else cap=50
+    var fcEpsGCapped = (fcRevG&&fcRevG>0)
+      ? Math.min(fcEpsG||0, Math.max(50,(fcRevG||0)*4))
+      : Math.min(fcEpsG||0, 50);
+
+    // ── EPS / Rev acceleration — V1 ──────────────────────────
+    // Q1/Q4: FY cur complete → 1y_ago→cur growth rate
+    // Q2/Q3: FY cur null   → 2y_ago→1y_ago growth rate
+    var fyEpsCur = useH1 ? null : epsFY;
+    var fyRevCur = useH1 ? null : revFY;
+    var epsActGr = fyEpsCur!==null
+      ? (eps1FY&&eps1FY!==0 ? ignGrowthPct(eps1FY,fyEpsCur) : null)
+      : (eps2FY&&eps1FY&&eps2FY!==0 ? ignGrowthPct(eps2FY,eps1FY) : null);
+    var revActGr = fyRevCur!==null
+      ? (rev1FY&&rev1FY>0 ? ((fyRevCur/rev1FY-1)*100) : null)
+      : (rev2FY&&rev1FY&&rev2FY>0 ? ((rev1FY/rev2FY-1)*100) : null);
+    var epsAccel = epsActGr!==null ? (fcEpsG||0)-epsActGr : null;
+    var revAccel = revActGr!==null ? (fcRevG||0)-revActGr : null;
+
+    // ── Half beat — V1 ignHalfBeat ───────────────────────────
+    // beat = average of EPS% and Rev% vs prior same half
+    var hpfx   = useH1?'H1':'H2';
+    var hEc    = useH1?epsH1:epsH2,  hEp1=useH1?eps1H1:eps1H2;
+    var hEp2   = useH1?eps2H1:eps2H2, hEp3=useH1?eps3H1:eps3H2;
+    var hRc    = useH1?revH1:revH2,  hRp1=useH1?rev1H1:rev1H2;
+    var hRp2   = useH1?rev2H1:rev2H2, hRp3=useH1?rev3H1:rev3H2;
+    var beatPrior=null, halfAccel=null;
+    if(hEc!==null&&hRc!==null&&hRc>0){
+      if(hEp1!==null&&hRp1!==null&&hRp1>0&&hEp1!==0)
+        beatPrior=((hEc-hEp1)/Math.abs(hEp1)*100+(hRc/hRp1-1)*100)/2;
+    }
+    // half accel: V1 = (cur%vsPrior1y) - (1y%vs2y) EPS only
+    if(hEc!==null&&hEp1!==null&&hEp2!==null&&hEp1>0&&hEp2>0)
+      halfAccel=((hEc-hEp1)/hEp1*100)-((hEp1-hEp2)/hEp2*100);
+
+    // ── Breakout — V1 ────────────────────────────────────────
+    // fc vs max of prior 2 FY EPS and Rev
+    var hEprior=[eps1FY,eps2FY].filter(function(x){return x!==null;});
+    var hRprior=[rev1FY,rev2FY].filter(function(x){return x!==null&&x>0;});
+    var hEmx=hEprior.length?Math.max.apply(null,hEprior):null;
+    var hRmx=hRprior.length?Math.max.apply(null,hRprior):null;
+    var breakoutPct=null;
+    if(hEmx!==null&&epsFc!==null&&epsFc>0&&hRmx!==null&&revFc!==null&&revFc>0){
+      var ePct=(hEmx!==0)?((epsFc-hEmx)/Math.abs(hEmx)*100):100;
+      var rPct=(revFc-hRmx)/hRmx*100;
+      breakoutPct=(ePct+rPct)/2;
     }
 
-    // ── EPS SECTION ──────────────────────────────────────────
-    // Latest half beat vs same half prior year
-    var latestHalfEps  = epsH1 !== null ? epsH1 : epsH2;
-    var priorSameHalfE = epsH1 !== null ? eps1H1 : eps1H2;
-    var halfBeatEps = (latestHalfEps!==null && priorSameHalfE!==null && priorSameHalfE!==0)
-      ? ((latestHalfEps - priorSameHalfE)/Math.abs(priorSameHalfE))*100 : null;
+    // ── New highs — V1 ───────────────────────────────────────
+    var hEall=[eps1FY,eps2FY].filter(function(x){return x!==null;});
+    var hRall=[rev1FY,rev2FY].filter(function(x){return x!==null&&x>0;});
+    var epsNewHigh = hEall.length&&epsFc!==null&&epsFc>Math.max.apply(null,hEall)?1:0;
+    var revNewHigh = hRall.length&&revFc!==null&&revFc>Math.max.apply(null,hRall)?1:0;
 
-    // fc EPS growth vs last FY
-    var epsGrowthFc = (epsFc!==null && eps1FY!==null && eps1FY!==0)
-      ? ((epsFc - eps1FY)/Math.abs(eps1FY))*100 : null;
-    // Cap EPS growth coherence at 4× revenue growth to avoid distortion
-    var revGrowthFc = (revFc!==null && rev1FY!==null && rev1FY!==0)
-      ? ((revFc - rev1FY)/Math.abs(rev1FY))*100 : null;
-    if(epsGrowthFc!==null && revGrowthFc!==null && revGrowthFc>0)
-      epsGrowthFc = Math.min(epsGrowthFc, revGrowthFc*4);
+    // ── Acquisition flag ─────────────────────────────────────
+    var acqV     = acqn||0;
+    var revActQ  = revFY||rev1FY||null;
+    var acqnFlag = acqV!==0&&revActQ&&revActQ>0&&Math.abs(acqV)>revActQ*0.15;
 
-    // EPS acceleration: half-year growth rate accelerating?
-    var epsAccH = null;
-    var prevHalfGrowthE = (eps1H1!==null && eps2H1!==null && eps2H1!==0) ? ((eps1H1-eps2H1)/Math.abs(eps2H1))*100 : null;
-    var currHalfGrowthE = (epsH1!==null && eps1H1!==null && eps1H1!==0) ? ((epsH1-eps1H1)/Math.abs(eps1H1))*100 : null;
-    if(prevHalfGrowthE!==null && currHalfGrowthE!==null) epsAccH = currHalfGrowthE - prevHalfGrowthE;
+    // ── Standout beat ─────────────────────────────────────────
+    var standout = beatPrior!==null&&beatPrior>25;
 
-    // fc vs actual EPS acceleration
-    var epsAccFc = (epsFc!==null && epsFY!==null && eps1FY!==null && eps1FY!==0)
-      ? (epsFc - epsFY) - (epsFY - eps1FY) : null;
-
-    // EPS new high
-    var epsNewHigh = (epsFc!==null)
-      && (eps1FY===null || epsFc > eps1FY)
-      && (eps2FY===null || epsFc > eps2FY)
-      && (eps3H1===null || epsFc > (eps3H1+eps3H2));
-
-    // EPS breakout (fc > prior max of any recorded FY)
-    var epsBreak = epsNewHigh ? 1 : 0;
-
-    // ── REVENUE SECTION ──────────────────────────────────────
-    var latestHalfRev  = revH1 !== null ? revH1 : revH2;
-    var priorSameHalfR = revH1 !== null ? rev1H1 : rev1H2;
-    var halfBeatRev = (latestHalfRev!==null && priorSameHalfR!==null && priorSameHalfR!==0)
-      ? ((latestHalfRev - priorSameHalfR)/Math.abs(priorSameHalfR))*100 : null;
-
-    // Rev acceleration
-    var revAccH = null;
-    var prevHalfGrowthR = (rev1H1!==null && rev2H1!==null && rev2H1!==0) ? ((rev1H1-rev2H1)/Math.abs(rev2H1))*100 : null;
-    var currHalfGrowthR = (revH1!==null && rev1H1!==null && rev1H1!==0) ? ((revH1-rev1H1)/Math.abs(rev1H1))*100 : null;
-    if(prevHalfGrowthR!==null && currHalfGrowthR!==null) revAccH = currHalfGrowthR - prevHalfGrowthR;
-
-    var revNewHigh = (revFc!==null)
-      && (rev1FY===null || revFc > rev1FY)
-      && (rev2FY===null || revFc > rev2FY);
-    var revBreak = revNewHigh ? 1 : 0;
-
-    // Acquisition flag: acqn > 15% of fc revenue
-    var acqnFlag = (acqn!==null && revFc!==null && revFc>0 && Math.abs(acqn)/revFc > 0.15);
-
-    // Standout beat
-    var standout = (halfBeatEps!==null && halfBeatEps > 25) || (halfBeatRev!==null && halfBeatRev > 25);
-
-    // ── IGNITION SCORE ───────────────────────────────────────
-    // Normalise each component 0-1 using sigmoid-like capping
-    function norm(v, low, high){ if(v===null) return null; return Math.min(1, Math.max(0,(v-low)/(high-low))); }
-
-    var cBeat  = norm(halfBeatEps!==null ? halfBeatEps : halfBeatRev, 0, 40);
-    var cEg    = norm(epsGrowthFc, epsFloor, 50);
-    var cRg    = norm(revGrowthFc, revFloor, 40);
-    var cBreak = (epsBreak + revBreak) / 2;
-    var cAccH  = norm(epsAccH!==null ? epsAccH : revAccH, -10, 20);
-    var cAccE  = epsAccFc!==null ? norm(epsAccFc, -5, 10) : null;
-    var cAccR  = norm(revAccH, -10, 20);
-
-    // Rescale weights if components are missing
-    var components = [
-      { w: wBeat,  v: cBeat  },
-      { w: wEg,    v: cEg    },
-      { w: wRg,    v: cRg    },
-      { w: wBreak, v: cBreak },
-      { w: wAccH,  v: cAccH  },
-      { w: wAccE,  v: cAccE  },
-      { w: wAccR,  v: cAccR  },
-    ];
-    var wTotal = 0, score = 0;
-    components.forEach(function(c){
-      if(c.v !== null){ wTotal += c.w; score += c.w * c.v; }
-    });
-    var ignition = wTotal > 0 ? (score / wTotal) * 99 : 0;
-
-    // Penalties
-    if(epsH1!==null && epsH1 < 0) ignition *= 0.40;
-    if(epsFc!==null && epsFc < 0) ignition *= 0.70; // combined ~0.28 with above
-    var revBase = revFY!==null ? revFY : revFc;
-    if(revBase!==null && Math.abs(revBase) < 5) ignition *= 0.50;
-
-    // Bonuses
-    if(epsNewHigh) ignition += 5;
-    if(revNewHigh) ignition += 3;
-
-    // Broker EPS upgrade bonuses
-    var bEpsBonus = 0, bRevBonus = 0;
-    if(bEps1m!==null){
-      if(bEps1m > 15) bEpsBonus = 6;
-      else if(bEps1m > 5) bEpsBonus = 4;
-      else if(bEps1m > 2) bEpsBonus = 2;
-    }
-    if(bRev1m!==null){
-      if(bRev1m > 15) bRevBonus = 4;
-      else if(bRev1m > 5) bRevBonus = 3;
-      else if(bRev1m > 2) bRevBonus = 2;
-    }
-    ignition += bEpsBonus + bRevBonus;
-    if(bEpsBonus > 0 && bRevBonus > 0) ignition += 2; // both upgraded
-    // 1w momentum
-    if(bEps1w!==null){
-      if(bEps1w > 0) ignition += 1;
-      else if(bEps1w < -3) ignition -= 2;
-      else if(bEps1w < 0) ignition -= 1;
-    }
-
-    ignition = Math.min(99, Math.max(0, ignition));
-
-    // ── FINAL RANK ───────────────────────────────────────────
-    var rank = ignition * maMult;
-    if(excluded) rank = 0;
-
-    // Broker momentum display: prefer weekly snapshot, else D-group upgrades
-    var brokerMom = bEps1m !== null ? bEps1m
-      : (upgEps1m !== null ? upgEps1m : null);
-
-    var brokerFlag = (bEpsBonus > 0 || bRevBonus > 0) ? (standout ? '🔥🔥' : '🔥') : '';
-
-    rawScores.push({
-      tidm:         tid,
-      name:         name,
-      sector:       sector,
-      yr_end:       yr_end,
-      qtr:          qtr,
-      ignition:     ignition,
-      rank:         rank,
-      lt:           ltOk,
-      mt:           mtOk,
-      st:           stOk,
-      rsi:          rsi,
-      mktcap:       mktcap,
-      shares:       shares,
-      idx_mem:      idx_mem,
-      broker_mom:   brokerMom,
-      broker_flag:  brokerFlag,
-      eps_new_high: epsNewHigh,
-      rev_new_high: revNewHigh,
-      acqn_flag:    acqnFlag,
-      standout:     standout,
-      excluded:     excluded,
-      _ws:          ws,
-      // scoring intermediates — used by scorecard breakdown + debug
-      _sc: {
-        halfBeatEps:  halfBeatEps,
-        halfBeatRev:  halfBeatRev,
-        epsGrowthFc:  epsGrowthFc,   // already capped
-        revGrowthFc:  revGrowthFc,
-        epsAccH:      epsAccH,
-        epsAccFc:     epsAccFc,
-        revAccH:      revAccH,
-        cBeat:        cBeat,
-        cEg:          cEg,
-        cRg:          cRg,
-        cBreak:       cBreak,
-        cAccH:        cAccH,
-        cAccE:        cAccE,
-        cAccR:        cAccR,
-        wBeat:        wBeat,
-        wEg:          wEg,
-        wRg:          wRg,
-        wBreak:       wBreak,
-        wAccH:        wAccH,
-        wAccE:        wAccE,
-        wAccR:        wAccR,
-        wTotal:       wTotal,
-        rawScore:     wTotal > 0 ? (score / wTotal) * 99 : 0,
-        epsFloor:     epsFloor,
-        revFloor:     revFloor,
-        isFTSE350:    isFTSE350,
-        // raw inputs for debug
-        eps1FY: eps1FY, eps2FY: eps2FY, epsFY: epsFY,
-        epsFc:  epsFc,  epsFc2: epsFc2,
-        epsH1:  epsH1,  epsH2:  epsH2,
-        eps1H1: eps1H1, eps1H2: eps1H2,
-        rev1FY: rev1FY, rev2FY: rev2FY, revFY: revFY,
-        revFc:  revFc,  revFc2: revFc2,
-        revH1:  revH1,  revH2:  revH2,
-        rev1H1: rev1H1, rev1H2: rev1H2,
-        bEps1m: bEps1m, bRev1m: bRev1m, bEps1w: bEps1w,
-        bEpsBonus: bEpsBonus, bRevBonus: bRevBonus,
-      },
+    cands.push({
+      tidm:tid, name:name, sector:sector, yr_end:yr_end, qtr:qtr,
+      f350:f350, idx_mem:idx_mem,
+      fcEpsG:fcEpsG, fcEpsGCapped:fcEpsGCapped, fcRevG:fcRevG,
+      epsAccel:epsAccel, revAccel:revAccel,
+      beatPrior:beatPrior, halfAccel:halfAccel, breakoutPct:breakoutPct,
+      epsNewHigh:epsNewHigh, revNewHigh:revNewHigh,
+      acqnFlag:acqnFlag, standout:standout,
+      lt:ltOk, mt:mtOk, st:stOk, rsi:rsi,
+      mktcap:mktcap, shares:shares,
+      bEps1m:bEps1m, bRev1m:bRev1m, bEps1w:bEps1w, bRev1w:bRev1w,
+      epsAct:epsAct, revAct:revAct, epsFc:epsFc, revFc:revFc,
+      hardFail:hardFail||null,
+      excluded:!!(hardFail&&hardF),  // only excluded if hard filter ON
+      _ws:ws,
+      // raw values for scorecard
+      _epsH1:epsH1,_epsH2:epsH2,_epsActFY:epsFY,
+      _revActFY:revFY,_revFc:revFc
     });
   });
 
-  // Percentile-rank ignition scores across non-excluded stocks
-  var active = rawScores.filter(function(d){ return !d.excluded && d.ignition > 0; });
-  active.sort(function(a,b){ return a.ignition - b.ignition; });
-  active.forEach(function(d, i){
-    d.ignition = Math.round((i / Math.max(active.length-1,1)) * 99);
-    d.rank     = Math.round(d.ignition * ([d.lt,d.mt,d.st].filter(function(v){return v===true;}).length===3?1.00:[d.lt,d.mt,d.st].filter(function(v){return v===true;}).length===2?0.85:[d.lt,d.mt,d.st].filter(function(v){return v===true;}).length===1?0.70:0.55));
+  if(!cands.length){ ignData=[]; ignRender(); return; }
+
+  // ── PERCENTILE ARRAYS — built over full candidate set (V1 ignPct) ──
+  var aEG = cands.map(function(c){return c.fcEpsGCapped;});
+  var aRG = cands.map(function(c){return c.fcRevG;});
+  var aEA = cands.filter(function(c){return c.epsAccel!==null;}).map(function(c){return c.epsAccel;});
+  var aRA = cands.filter(function(c){return c.revAccel!==null;}).map(function(c){return c.revAccel;});
+  var aBP = cands.filter(function(c){return c.beatPrior!==null;}).map(function(c){return c.beatPrior;});
+  var aBK = cands.filter(function(c){return c.breakoutPct!==null;}).map(function(c){return c.breakoutPct;});
+  var aHA = cands.filter(function(c){return c.halfAccel!==null;}).map(function(c){return c.halfAccel;});
+
+  // ── SCORE EACH CANDIDATE — V1 logic exactly ──────────────
+  cands.forEach(function(c){
+    // Per-ticker weight redistribution when components are missing
+    var w={eg:BASE_W.eg,rg:BASE_W.rg,ea:BASE_W.ea,ra:BASE_W.ra,
+           bp:BASE_W.bp,bk:BASE_W.bk,ha:BASE_W.ha};
+    if(c.epsAccel===null){  w.eg+=w.ea*0.6; w.rg+=w.ea*0.4; w.ea=0; }
+    if(c.revAccel===null){  w.rg+=w.ra*0.7; w.eg+=w.ra*0.3; w.ra=0; }
+    if(c.beatPrior===null){ w.eg+=w.bp*0.6; w.rg+=w.bp*0.4; w.bp=0; }
+    if(c.breakoutPct===null){ w.eg+=w.bk*0.5; w.rg+=w.bk*0.5; w.bk=0; }
+    if(c.halfAccel===null){ w.bp+=w.ha; w.ha=0; }
+
+    var raw = ignPct(aEG,c.fcEpsGCapped)*w.eg
+            + ignPct(aRG,c.fcRevG)*w.rg
+            + (aEA.length&&c.epsAccel!==null ? ignPct(aEA,c.epsAccel)*w.ea : 0)
+            + (aRA.length&&c.revAccel!==null ? ignPct(aRA,c.revAccel)*w.ra : 0)
+            + (aBP.length&&c.beatPrior!==null ? ignPct(aBP,c.beatPrior)*w.bp : 0)
+            + (aBK.length&&c.breakoutPct!==null ? ignPct(aBK,c.breakoutPct)*w.bk : 0)
+            + (aHA.length&&c.halfAccel!==null ? ignPct(aHA,c.halfAccel)*w.ha : 0);
+
+    // ── V1 penalties ─────────────────────────────────────────
+    // Current half EPS (qtr-determined)
+    var useH1c=(c.qtr==='Q2'||c.qtr==='Q3');
+    var curHalfEps = useH1c ? c._epsH1 : c._epsH2;
+    var fcFyEps    = c.epsFc;
+    var lossMult   = 1.0;
+    if(curHalfEps!==null&&curHalfEps<0){
+      lossMult *= 0.4;
+      if(fcFyEps!==null&&fcFyEps<0) lossMult *= 0.7; // combined 0.28
+    }
+    // Revenue base floor: either FY act or fc rev must be ≥ £5m
+    var revActV   = c._revActFY||c.revAct||null;
+    var fcRevV    = c._revFc||c.revFc||null;
+    var revPasses = (revActV!==null&&revActV>=5)||(fcRevV!==null&&fcRevV>=5);
+    var revFloorMult = revPasses ? 1.0 : 0.5;
+
+    // ── V1 bonuses ───────────────────────────────────────────
+    var bonus = c.epsNewHigh*5 + c.revNewHigh*3;
+    // Broker upgrade bonuses
+    var epsUpg = c.bEps1m!==null ? c.bEps1m : c.bEps1w;
+    var epsBk  = epsUpg!==null ? epsUpg : 0;
+    var revBk  = c.bRev1m!==null ? c.bRev1m : 0;
+    var epsBonus = epsBk>15?6:epsBk>5?4:epsBk>2?2:0;
+    var revBonus = revBk>15?4:revBk>5?3:revBk>2?2:0;
+    var bothBonus= (epsBonus>0&&revBonus>0)?2:0;
+    var bkBonus  = epsBonus+revBonus+bothBonus;
+    // 1w momentum modifier
+    var eps1w=c.bEps1w!==null?c.bEps1w:0, rev1w=c.bRev1w!==null?c.bRev1w:0;
+    var wkMod=0;
+    if(eps1w>0||rev1w>0) wkMod=1;
+    else if(eps1w<-3||rev1w<-3) wkMod=-2;
+    else if(eps1w<0||rev1w<0) wkMod=-1;
+    bkBonus = Math.max(0, bkBonus+wkMod);
+
+    // ── Final ignition — V1 formula exactly ──────────────────
+    var ignition = Math.min(99, Math.round(raw*0.90*lossMult*revFloorMult + bonus + bkBonus));
+
+    // ── MA multiplier ────────────────────────────────────────
+    var mc=(c.lt?1:0)+(c.mt?1:0)+(c.st?1:0);
+    var maMult=mc===3?1.00:mc===2?0.85:mc===1?0.70:0.55;
+    var rank = Math.round(ignition*maMult*10)/10;
+
+    // If excluded (hard filter ON + hardFail set) → rank = 0 but keep in list
+    if(c.excluded){ ignition=Math.min(99,Math.round(raw*0.90*lossMult*revFloorMult+bonus+bkBonus)); rank=0; }
+
+    c.ignition   = ignition;
+    c.rank       = rank;
+    c.lossMult   = lossMult;
+    c.revFloorMult = revFloorMult;
+    c.bkBonus    = bkBonus;
+    c.brokerMom  = c.bEps1m!==null ? c.bEps1m : null;
+    c.brokerFlag = (epsBonus>0||revBonus>0)?(c.standout?'🔥🔥':'🔥'):'';
+    c._w         = w; // store for scorecard breakdown
   });
 
-  ignData = rawScores;
-  ignData.sort(function(a,b){ return b.rank - a.rank; });
+  ignData = cands;
+  ignData.sort(function(a,b){ return b.rank-a.rank; });
   ignRender();
 }
 
 function pf(v){ var n=parseFloat(String(v||'').replace(/[,£p]/g,'')); return isNaN(n)?null:n; }
 function flag(v){ return String(v||'').toLowerCase()==='true'||String(v||'')==='1'; }
-
 // parseCsvIndexed
 // Used for Groups A-D where columns are positional (no reliable header names)
 function parseCsvIndexed(text, group){
@@ -1479,10 +1478,10 @@ function ignRender(filterQ){
     var sharesCol = d.shares!==null?(d.shares<SHARES_LOW?'var(--green)':d.shares<=SHARES_HIGH?'var(--amber)':'var(--red)'):'var(--text-dim)';
     var rsiCol    = d.rsi!==null?(d.rsi>=60?'var(--amber)':d.rsi<=35?'var(--blue)':'var(--text-secondary)'):'var(--text-dim)';
     var capStr    = d.mktcap!==null?(d.mktcap>=1000?(d.mktcap/1000).toFixed(1)+'b':d.mktcap.toFixed(0)+'m'):'—';
-    var momStr = d.broker_mom!==null?((d.broker_mom>0?'+':'')+d.broker_mom.toFixed(1)+'%'):'—';
-    var momCol = d.broker_mom!==null?(d.broker_mom>0?'var(--green)':d.broker_mom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
-    var momCell= momStr + (d.broker_flag?' '+d.broker_flag:'');
-    var tidmCell = escHtml(d.tidm)+(d.acqn_flag?' <span style="color:var(--red);font-size:9px;">⚑</span>':'');
+    var momStr = d.brokerMom!==null?((d.brokerMom>0?'+':'')+d.brokerMom.toFixed(1)+'%'):'—';
+    var momCol = d.brokerMom!==null?(d.brokerMom>0?'var(--green)':d.brokerMom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
+    var momCell= momStr + (d.brokerFlag?' '+d.brokerFlag:'');
+    var tidmCell = escHtml(d.tidm)+(d.acqnFlag?' <span style="color:var(--red);font-size:9px;">⚑</span>':'');
     function maCell(v){ return '<td class="'+(v===true?'ma-on':v===false?'ma-off':'ma-nil')+'" style="font-size:10px;text-align:center;">'+(v===true?'✓':v===false?'✗':'·')+'</td>'; }
 
     html+='<tr class="tr-data" ondblclick="ignOpenPopup(\''+d.tidm+'\')">'
@@ -1493,7 +1492,7 @@ function ignRender(filterQ){
       +'<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.yr_end||'')+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.qtr||'')+'</td>'
-      +'<td style="text-align:center;font-size:9px;">'+(d.eps_new_high||d.rev_new_high?'<span style="color:var(--green);">★</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'
+      +'<td style="text-align:center;font-size:9px;">'+(d.epsNewHigh||d.revNewHigh?'<span style="color:var(--green);">★</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'
       +'<td><div class="rank-bar-wrap">'
         +'<div class="rank-bar-track"><div class="rank-bar-fill" style="width:'+barPct.toFixed(0)+'%;background:'+rankCol+';"></div></div>'
         +'<span class="rank-score" style="color:'+rankCol+';">'+(d.rank?d.rank.toFixed(0):'—')+'</span>'
@@ -1626,7 +1625,7 @@ function ignOpenPopup(tidm){
   var epsBS=sc.bEpsBonus||0, revBS=sc.bRevBonus||0;
   var bothBS=(epsBS>0&&revBS>0)?2:0;
   var wkMod=bEps1wSc!==null?(bEps1wSc>0?1:bEps1wSc<-3?-2:bEps1wSc<0?-1:0):0;
-  var epsHB=d.eps_new_high?5:0, revHB=d.rev_new_high?3:0;
+  var epsHB=d.epsNewHigh?5:0, revHB=d.revNewHigh?3:0;
   var totBonus=epsHB+revHB+epsBS+revBS+bothBS+wkMod;
 
   // Debug panel
@@ -1671,8 +1670,8 @@ function ignOpenPopup(tidm){
     +'</div>'
     +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Bonuses</div>'
     +'<table style="width:100%;border-collapse:collapse;">'
-    +bRow2('fc EPS new high '+(d.eps_new_high?'✓':'—'), epsHB, '+5pts')
-    +bRow2('fc Rev new high '+(d.rev_new_high?'✓':'—'), revHB, '+3pts')
+    +bRow2('fc EPS new high '+(d.epsNewHigh?'✓':'—'), epsHB, '+5pts')
+    +bRow2('fc Rev new high '+(d.revNewHigh?'✓':'—'), revHB, '+3pts')
     +bRow2('Standout beat >25% '+(d.standout?'🔥🔥':'—'), 0, 'flag only')
     +bRow2('Broker EPS 1m '+(bEps1mSc!==null?bEps1mSc.toFixed(2)+'%':'—'), epsBS, bEps1mSc!==null?'+'+epsBS:'—')
     +bRow2('Broker Rev 1m '+(bRev1mSc!==null?bRev1mSc.toFixed(2)+'%':'—'), revBS, bRev1mSc!==null?'+'+revBS:'—')
@@ -1784,7 +1783,7 @@ function ignOpenPopup(tidm){
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:10px;">'
         +'<div>EPS 1w: '+fmtC(bEps1w,2,'%')+'</div><div>EPS 1m: '+fmtC(bEps1m,2,'%')+'</div>'
         +'<div>Rev 1w: '+fmtC(bRev1w,2,'%')+'</div><div>Rev 1m: '+fmtC(bRev1m,2,'%')+'</div>'
-        +'<div style="grid-column:1/-1;">Broker Mom: '+fmtC(d.broker_mom,2,'%')+'</div>'
+        +'<div style="grid-column:1/-1;">Broker Mom: '+fmtC(d.brokerMom,2,'%')+'</div>'
       +'</div>'
     +'</div>'
     // RIGHT
