@@ -1179,16 +1179,14 @@ function ignRun(){
     var yr_end=colS(a,'C');
     var qtr   =colS(a,'D');
 
-    // ── BROKER MOMENTUM ───────────────────────────────────────
-    // V1: bk_eps_1m = Weekly Snapshot eps_1m_pct (from .txt)
-    //     bk_eps_1w = Weekly Snapshot eps_1w_pct
-    //     bk_rev_1m = Weekly Snapshot rev_1m_pct
-    //     bk_rev_1w = Weekly Snapshot rev_1w_pct
-    // Fallback to Group D upgrade % if no snapshot loaded
-    var bEps1m = ws ? ws.eps_1m_pct : (upgEps1m!==null ? upgEps1m : null);
-    var bRev1m = ws ? ws.rev_1m_pct : (upgRev1m!==null ? upgRev1m : null);
-    var bEps1w = ws ? ws.eps_1w_pct : (upgEps1w!==null ? upgEps1w : null);
-    var bRev1w = ws ? ws.rev_1w_pct : (upgRev1w!==null ? upgRev1w : null);
+    // ── BROKER MOMENTUM — from live Group D feeds ─────────────
+    // D·I = fc EPS upgrade % 1w,  D·H = fc Rev upgrade % 1w
+    // D·L = fc EPS upgrade % 1m,  D·K = fc Rev upgrade % 1m
+    // Weekly Snapshot kept for long-term trend only (future use)
+    var bEps1m = upgEps1m;
+    var bRev1m = upgRev1m;
+    var bEps1w = upgEps1w;
+    var bRev1w = upgRev1w;
 
     // ── INDEX ────────────────────────────────────────────────
     var f350   = ignIs350(idx_mem);
@@ -1389,7 +1387,7 @@ function ignRun(){
     c.lossMult   = lossMult;
     c.revFloorMult = revFloorMult;
     c.bkBonus    = bkBonus;
-    c.brokerMom  = c.bEps1m!==null ? c.bEps1m : null;
+    c.brokerMom  = bEps1m!==null ? bEps1m : bRev1m;  // live from D·L / D·K
     c.brokerFlag = (epsBonus>0||revBonus>0)?(c.standout?'🔥🔥':'🔥'):'';
     c._w         = w; // store for scorecard breakdown
   });
