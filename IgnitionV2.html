@@ -413,41 +413,15 @@ var SHARES_LOW  = 134;
 var SHARES_HIGH = 495;
 
 // Runtime state
-var liveData      = {};   // TIDM → raw CSV row
-var weeklySnap    = {};   // TIDM → parsed snapshot object
-var ignData       = [];   // final scored rows
+var liveData      = {};
+var weeklySnap    = {};
+var ignData       = [];
 var ignSortKey    = 'rank';
 var ignSortAsc    = false;
-var prevRanks     = {};   // TIDM → prior-day position (integer)
-var prevRanksDate = '';   // ISO date of prevRanks
+var prevRanks     = {};
+var prevRanksDate = '';
 
-// ── Init ──
-(function init(){
-  // Clear any old partial URL saves so presets load cleanly
-  var saved = []; try{ saved = JSON.parse(ls(K.URLS)); }catch(e){}
-  if(saved.length > 0 && saved.length < NUM_URLS) lsDel(K.URLS);
-
-  buildUrlList();
-  loadSavedUrls();
-  updateUrlCountBadge();
-  loadGitHubConfig();
-  loadCachedWeeklySnapshot();
-  updateWeightBadge();
-  if(ls(K.GH_TOKEN) && ls(K.GH_REPO)){
-    ghFetchWeeklySnapshot(true);
-    ghFetchRankSnapshot(true);
-  }
-})();
-
-// localStorage helpers
-function ls(k)    { return localStorage.getItem(k)||''; }
-function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
-function lsDel(k)  { try{ localStorage.removeItem(k); }catch(e){} }
-
-// ═══════════════════════════════════════════════════════════
-// URL MANAGEMENT
-// ═══════════════════════════════════════════════════════════
-// ── Pre-loaded URLs (hard-coded fallback — also saved to localStorage on first run) ──
+// ── Feed configuration — must be declared before init ──
 var PRESET_URLS = [
   // Group A (slots 1–6): Turnover + EPS history & forecasts
   'https://docs.google.com/spreadsheets/d/e/2PACX-1vR_zzeP6vyw_9tzJZfhFDMiTpILnBhTSk5axSX1bkxNrHJQwcRLx7WgpOJuagkLPw/pub?gid=1363531351&single=true&output=csv',  // A1
@@ -480,7 +454,6 @@ var PRESET_URLS = [
   '',  // slot 25 spare
 ];
 
-// Feed slot metadata: label shown next to each URL input
 var FEED_LABELS = [
   'A1 · Turnover/EPS pt1','A2 · Turnover/EPS pt2','A3 · Turnover/EPS pt3',
   'A4 · Turnover/EPS pt4','A5 · Turnover/EPS pt5','A6 · Turnover/EPS pt6',
@@ -493,9 +466,35 @@ var FEED_LABELS = [
   'Spare',
 ];
 
-// Which group each slot belongs to (0=A,1=B,2=C,3=D,-1=spare)
+// Which group each slot belongs to: 0=A, 1=B, 2=C, 3=D, -1=spare
 var FEED_GROUP = [0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3,3,3,3,3, -1];
 
+// ── Init ──
+(function init(){
+  // Clear any old partial URL saves so presets load cleanly
+  var saved = []; try{ saved = JSON.parse(ls(K.URLS)); }catch(e){}
+  if(saved.length > 0 && saved.length < NUM_URLS) lsDel(K.URLS);
+
+  buildUrlList();
+  loadSavedUrls();
+  updateUrlCountBadge();
+  loadGitHubConfig();
+  loadCachedWeeklySnapshot();
+  updateWeightBadge();
+  if(ls(K.GH_TOKEN) && ls(K.GH_REPO)){
+    ghFetchWeeklySnapshot(true);
+    ghFetchRankSnapshot(true);
+  }
+})();
+
+// localStorage helpers
+function ls(k)    { return localStorage.getItem(k)||''; }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function lsDel(k)  { try{ localStorage.removeItem(k); }catch(e){} }
+
+// ═══════════════════════════════════════════════════════════
+// URL MANAGEMENT
+// ═══════════════════════════════════════════════════════════
 function buildUrlList(){
   var sections = [
     { label:'Feed Group A · Turnover / EPS', start:1,  end:6  },
