@@ -1613,7 +1613,35 @@ function ignOpenPopup(tidm){
   }
 
   // ── score breakdown using stored intermediates ──
-  var sc = d._sc || {};
+  var sc = d._sc || {
+    // scoring intermediates — map from new cands structure
+    halfBeatEps:  d.beatPrior,      // V1 beat = combined EPS+Rev, displayed as one
+    halfBeatRev:  null,
+    epsGrowthFc:  d.fcEpsGCapped,
+    revGrowthFc:  d.fcRevG,
+    epsAccH:      d.halfAccel,
+    epsAccFc:     d.epsAccel,
+    revAccH:      d.revAccel,
+    cBeat:        d.beatPrior!==null ? Math.min(1,Math.max(0,(d.beatPrior/40))) : null,
+    cEg:          d.fcEpsGCapped!==null ? Math.min(1,Math.max(0,(d.fcEpsGCapped-5)/45)) : null,
+    cRg:          d.fcRevG!==null ? Math.min(1,Math.max(0,(d.fcRevG-3)/37)) : null,
+    cBreak:       (d.epsNewHigh||0)*0.5 + (d.revNewHigh||0)*0.5,
+    cAccH:        d.halfAccel!==null ? Math.min(1,Math.max(0,(d.halfAccel+10)/30)) : null,
+    cAccE:        d.epsAccel!==null ? Math.min(1,Math.max(0,(d.epsAccel+10)/30)) : null,
+    cAccR:        d.revAccel!==null ? Math.min(1,Math.max(0,(d.revAccel+10)/30)) : null,
+    rawScore:     d.ignition - (d.bkBonus||0) - (d.epsNewHigh?5:0) - (d.revNewHigh?3:0),
+    wTotal:       1.0,
+    wBeat:  (d._w||{}).bp||0.25, wEg:  (d._w||{}).eg||0.20, wRg:  (d._w||{}).rg||0.20,
+    wBreak: (d._w||{}).bk||0.12, wAccH:(d._w||{}).ha||0.10, wAccE:(d._w||{}).ea||0.08, wAccR:(d._w||{}).ra||0.05,
+    epsFloor: d.f350?5:8, revFloor: d.f350?3:5, isFTSE350: d.f350,
+    // raw inputs for debug
+    epsH1:d._epsH1, epsH2:d._epsH2, epsFY:d._epsActFY, epsFc:d.epsFc, epsFc2:null,
+    eps1FY:d.epsAct, eps2FY:null, eps1H1:null, eps1H2:null,
+    revFY:d._revActFY, revFc:d.revFc, revFc2:null,
+    rev1FY:d.revAct, rev2FY:null, revH1:null, revH2:null, rev1H1:null, rev1H2:null,
+    bEps1m:d.bEps1m, bRev1m:d.bRev1m, bEps1w:d.bEps1w,
+    bEpsBonus: d.bkBonus||0, bRevBonus:0,
+  };
   function pL(v){ return (v===null||v===undefined)?'—':v.toFixed(1)+'%'; }
   function pBar(pts,clr){
     var pct = pts!==null ? Math.round(Math.max(0,Math.min(100,pts*100))) : null;
@@ -1645,8 +1673,9 @@ function ignOpenPopup(tidm){
   var effWBeat=sc.wBeat||0.25, effWEg=sc.wEg||0.20, effWRg=sc.wRg||0.20;
   var effWBreak=sc.wBreak||0.12, effWAccH=sc.wAccH||0.10, effWAccE=sc.wAccE||0.08, effWAccR=sc.wAccR||0.05;
 
-  var bEps1mSc=sc.bEps1m, bRev1mSc=sc.bRev1m, bEps1wSc=sc.bEps1w;
-  var epsBS=sc.bEpsBonus||0, revBS=sc.bRevBonus||0;
+  var bEps1mSc=d.bEps1m, bRev1mSc=d.bRev1m, bEps1wSc=d.bEps1w;
+  var epsBS = bEps1mSc!==null?(bEps1mSc>15?6:bEps1mSc>5?4:bEps1mSc>2?2:0):0;
+  var revBS = bRev1mSc!==null?(bRev1mSc>15?4:bRev1mSc>5?3:bRev1mSc>2?2:0):0;
   var bothBS=(epsBS>0&&revBS>0)?2:0;
   var wkMod=bEps1wSc!==null?(bEps1wSc>0?1:bEps1wSc<-3?-2:bEps1wSc<0?-1:0):0;
   var epsHB=d.epsNewHigh?5:0, revHB=d.revNewHigh?3:0;
