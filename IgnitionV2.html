@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IgnitionV2 ⚡ Stock Screener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:            #0a0e17;
+  --surface:       #111827;
+  --surface2:      #1a2235;
+  --surface3:      #212d42;
+  --border:        rgba(255,255,255,0.08);
+  --border-bright: rgba(255,255,255,0.18);
+  --text-primary:  #f0f4ff;
+  --text-secondary:#b8c4e0;
+  --text-dim:      #6b7a99;
+  --amber:         #f59e0b;
+  --amber-dim:     rgba(245,158,11,0.12);
+  --amber-mid:     rgba(245,158,11,0.35);
+  --green:         #10b981;
+  --green-dim:     rgba(16,185,129,0.12);
+  --red:           #ef4444;
+  --red-dim:       rgba(239,68,68,0.12);
+  --blue:          #60a5fa;
+  --blue-dim:      rgba(96,165,250,0.12);
+  --teal:          #2dd4bf;
+  --font-display:  'Syne', sans-serif;
+  --font-mono:     'Geist', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text-primary);font-family:var(--font-mono);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");opacity:.4;}
+
+/* Hero */
+#hero{position:relative;z-index:10;padding:28px 32px 20px;background:linear-gradient(135deg,rgba(245,158,11,0.06) 0%,transparent 60%);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+#hero-logo{display:flex;align-items:center;gap:10px;}
+#hero-bolt{font-size:28px;filter:drop-shadow(0 0 12px rgba(245,158,11,0.8));animation:pulse-bolt 3s ease-in-out infinite;}
+@keyframes pulse-bolt{0%,100%{filter:drop-shadow(0 0 8px rgba(245,158,11,0.6));}50%{filter:drop-shadow(0 0 20px rgba(245,158,11,1));}}
+#hero-title{font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-.02em;background:linear-gradient(135deg,#f59e0b,#fbbf24,#f0f4ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+#hero-sub{font-size:10px;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;margin-top:2px;}
+#hero-status{display:flex;align-items:center;gap:16px;margin-left:auto;flex-wrap:wrap;}
+.status-pill{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:10px;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text-dim);}
+.status-dot.live{background:var(--green);box-shadow:0 0 8px var(--green);}
+.status-dot.loading{background:var(--amber);animation:blink .7s infinite;}
+.status-dot.error{background:var(--red);}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* Controls */
+#controls{position:relative;z-index:10;padding:12px 32px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ctrl-group{display:flex;align-items:center;gap:6px;}
+.ctrl-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap;}
+.ctrl-input{width:38px;background:var(--surface2);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;padding:4px 5px;border-radius:4px;text-align:center;transition:border-color .2s;}
+.ctrl-input:focus{outline:none;border-color:var(--amber);}
+.ctrl-check{display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--text-dim);}
+.ctrl-check input{accent-color:var(--amber);}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:6px;font-family:var(--font-mono);font-size:10px;font-weight:500;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;letter-spacing:.04em;}
+.btn-primary{background:var(--amber);color:#0a0e17;font-weight:700;box-shadow:0 0 20px rgba(245,158,11,0.3);}
+.btn-primary:hover{background:#fbbf24;box-shadow:0 0 30px rgba(245,158,11,0.5);}
+.btn-secondary{background:var(--surface2);color:var(--text-secondary);border:1px solid var(--border);}
+.btn-secondary:hover{background:var(--surface3);border-color:var(--border-bright);}
+.btn-ghost{background:transparent;color:var(--text-dim);border:1px solid var(--border);}
+.btn-ghost:hover{color:var(--text-primary);border-color:var(--border-bright);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* URL panel */
+#url-panel{display:none;position:relative;z-index:10;background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;max-height:80vh;overflow-y:auto;}
+#url-panel.open{display:block;}
+.url-list{display:flex;flex-direction:column;gap:6px;margin-top:12px;}
+.url-row{display:flex;align-items:center;gap:10px;}
+.url-num{font-size:9px;color:var(--amber);font-weight:700;width:22px;text-align:right;flex-shrink:0;}
+.url-input{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:9px;padding:5px 9px;border-radius:4px;transition:border-color .2s;min-width:0;}
+.url-input:focus{outline:none;border-color:var(--amber);}
+.url-input::placeholder{color:var(--text-dim);}
+.url-status-icon{font-size:10px;width:14px;flex-shrink:0;text-align:center;color:var(--text-dim);}
+.url-section-hdr{font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:8px;}
+.url-section-hdr:first-child{border-top:none;margin-top:0;padding-top:0;}
+
+/* Weekly Snapshot zone */
+#ws-zone{position:relative;z-index:10;padding:10px 32px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+
+/* Legend */
+#legend{position:relative;z-index:10;padding:6px 32px;background:linear-gradient(90deg,rgba(16,185,129,0.04),transparent);border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:9px;color:var(--text-dim);}
+.leg-item{display:flex;align-items:center;gap:4px;}
+.leg-dot{width:6px;height:6px;border-radius:50%;}
+
+/* Table */
+#table-wrap{position:relative;z-index:5;flex:1;overflow-y:auto;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+.th{padding:7px 8px;font-family:var(--font-display);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);font-weight:600;cursor:pointer;background:var(--surface);border-bottom:2px solid var(--border-bright);white-space:nowrap;text-align:right;position:sticky;top:0;z-index:20;transition:color .15s;}
+.th:hover{color:var(--text-primary);}
+.th-left{text-align:left;}
+.th-amber{color:var(--amber)!important;}
+.th-blue{color:var(--blue)!important;}
+.tr-data{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+.tr-data:hover{background:var(--surface2);}
+td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
+.td-left{text-align:left;}
+.td-dim{color:var(--text-dim);}
+.rank-bar-wrap{display:flex;align-items:center;gap:6px;min-width:120px;}
+.rank-bar-track{flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden;}
+.rank-bar-fill{height:100%;border-radius:3px;transition:width .3s;}
+.rank-score{font-family:var(--font-display);font-size:15px;font-weight:800;min-width:28px;text-align:right;}
+.ma-on{color:var(--green);font-weight:700;background:rgba(16,185,129,0.1);}
+.ma-off{color:var(--red);font-weight:700;background:rgba(239,68,68,0.1);}
+.ma-nil{color:var(--text-dim);}
+
+/* Scorecard popup */
+#popup{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:600;width:72%;max-width:1200px;height:84vh;background:var(--surface);border:2px solid rgba(255,255,255,0.2);border-radius:10px;box-shadow:0 24px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.05);flex-direction:column;overflow:hidden;animation:popup-in .2s ease;}
+#popup.open{display:flex;}
+@keyframes popup-in{from{opacity:0;transform:translate(-50%,-48%);}to{opacity:1;transform:translate(-50%,-50%);}}
+#popup-overlay{display:none;position:fixed;inset:0;z-index:599;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);}
+#popup-overlay.open{display:block;}
+#popup-bar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:38px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
+#popup-bar span{font-family:var(--font-display);font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;}
+#popup-body{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+
+/* Info modal */
+#info-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:700;background:var(--surface2);border:1px solid var(--border-bright);border-radius:8px;padding:20px 24px;min-width:440px;max-width:600px;box-shadow:0 12px 40px rgba(0,0,0,0.6);overflow-y:auto;max-height:80vh;}
+
+/* Empty state */
+#empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;text-align:center;color:var(--text-dim);gap:16px;}
+#empty-icon{font-size:48px;filter:drop-shadow(0 0 20px rgba(245,158,11,0.3));}
+#empty-title{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text-secondary);}
+#empty-sub{font-size:11px;line-height:1.7;max-width:400px;}
+#count-badge{background:var(--green-dim);border:1px solid rgba(16,185,129,0.2);color:var(--green);border-radius:12px;padding:2px 10px;font-size:9px;font-weight:600;letter-spacing:.06em;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--border-bright);}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div id="hero">
+  <div id="hero-logo">
+    <div id="hero-bolt">⚡</div>
+    <div>
+      <div id="hero-title">IGNITION V2</div>
+      <div id="hero-sub">Growth momentum screener · UK Listed Equities</div>
+    </div>
+  </div>
+  <div id="hero-status">
+    <div class="status-pill"><div class="status-dot" id="data-dot"></div><span id="data-status">No data loaded</span></div>
+    <div class="status-pill"><div class="status-dot" id="ws-dot"></div><span id="ws-status">Weekly Snapshot not loaded</span></div>
+    <span id="count-badge" style="display:none;"></span>
+    <button class="btn btn-ghost" onclick="toggleInfo()" style="padding:5px 10px;">ⓘ</button>
+  </div>
+</div>
+
+<!-- Controls -->
+<div id="controls">
+  <button class="btn btn-primary" id="refresh-btn" onclick="refreshData()">⚡ Load Data</button>
+  <button class="btn btn-secondary" onclick="toggleUrlPanel()">⚙ URLs <span id="url-count-badge" style="font-size:8px;color:var(--amber);margin-left:2px;"></span></button>
+  <button class="btn btn-secondary" onclick="openGitHubPanel()">☁ GitHub</button>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">FTSE350 EPS≥</span><input class="ctrl-input" id="ign-f350-eps" type="number" value="5" min="0" max="50">
+    <span class="ctrl-label">REV≥</span><input class="ctrl-input" id="ign-f350-rev" type="number" value="3" min="0" max="50">
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">AIM/SC EPS≥</span><input class="ctrl-input" id="ign-aim-eps" type="number" value="8" min="0" max="50">
+    <span class="ctrl-label">REV≥</span><input class="ctrl-input" id="ign-aim-rev" type="number" value="5" min="0" max="50">
+  </div>
+  <label class="ctrl-check"><input type="checkbox" id="ign-excl-lt" checked> Excl falling 200d</label>
+  <label class="ctrl-check"><input type="checkbox" id="ign-hard-filter" checked> Hard filter</label>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+  <div class="ctrl-group">
+    <span class="ctrl-label" title="Half beat vs prior yr weight %">Beat%</span><input class="ctrl-input" id="w-beat" type="number" value="25" min="5" max="60" style="width:34px;">
+    <span class="ctrl-label" title="fc EPS growth weight %">fcEPS%</span><input class="ctrl-input" id="w-eg" type="number" value="20" min="5" max="50" style="width:34px;">
+    <span class="ctrl-label" title="fc Rev growth weight %">fcRev%</span><input class="ctrl-input" id="w-rg" type="number" value="20" min="5" max="50" style="width:34px;">
+    <span id="w-total-badge" style="font-size:9px;color:var(--green);padding:2px 6px;background:var(--green-dim);border-radius:4px;border:1px solid rgba(16,185,129,0.2);">rem 35%</span>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+    <span style="font-size:9px;color:var(--text-dim);" id="last-refresh"></span>
+    <span id="sort-mode-badge" style="display:none;background:var(--amber-dim);border:1px solid var(--amber-mid);color:var(--amber);border-radius:10px;padding:2px 9px;font-size:9px;cursor:pointer;" onclick="ignCycleSort()">⚡ Rank</span>
+  </div>
+</div>
+
+<!-- URL Panel -->
+<div id="url-panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <span style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text-secondary);">Live Data Feed URLs — 25 slots</span>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="font-size:9px;padding:4px 10px;" onclick="saveUrls()">💾 Save URLs</button>
+      <button class="btn btn-secondary" style="font-size:9px;padding:4px 10px;" onclick="clearAllUrls()">✕ Clear All</button>
+      <button class="btn btn-ghost"     style="font-size:9px;padding:4px 10px;" onclick="toggleUrlPanel()">✕ Close</button>
+    </div>
+  </div>
+  <div style="font-size:9px;color:var(--text-dim);margin-bottom:2px;">Paste published Google Sheets CSV export links or any live CSV endpoint. Saved to localStorage. Full addresses shown to spot errors.</div>
+  <div class="url-list" id="url-list"></div>
+</div>
+
+<!-- Weekly Snapshot zone -->
+<div id="ws-zone">
+  <span style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;">⬇ Weekly Snapshot</span>
+  <span style="font-size:9px;color:var(--text-dim);">Broker EPS / Rev fc · .txt from ShareScope · upload weekly</span>
+  <label style="border:1px dashed var(--border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:9px;color:var(--text-dim);transition:all .2s;"
+    onmouseover="this.style.borderColor='var(--amber)';this.style.color='var(--amber)';"
+    onmouseout="this.style.borderColor='';this.style.color='';">
+    📂 Upload .txt
+    <input type="file" id="ws-input" accept=".txt" style="display:none;" onchange="loadWeeklySnapshot(this)">
+  </label>
+  <span id="ws-file-name" style="font-size:9px;color:var(--text-dim);">—</span>
+  <button class="btn btn-ghost" id="ws-gh-btn"    onclick="openGitHubPanel()" style="font-size:9px;padding:4px 10px;display:none;">☁ GitHub Sync</button>
+  <button class="btn btn-ghost" id="ws-clear-btn" onclick="clearWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">✕ Clear</button>
+  <span id="ws-ticker-count" style="font-size:9px;color:var(--green);display:none;"></span>
+</div>
+
+<!-- GitHub Panel -->
+<div id="gh-overlay" style="display:none;position:fixed;inset:0;z-index:599;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);" onclick="closeGitHubPanel()"></div>
+<div id="gh-panel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:600;width:500px;background:var(--surface2);border:1px solid var(--border-bright);border-radius:10px;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,0.7);font-family:var(--font-mono);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;">☁ GitHub Sync</span>
+    <button onclick="closeGitHubPanel()" style="background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;">✕</button>
+  </div>
+  <div style="font-size:10px;margin-bottom:14px;display:flex;align-items:center;gap:6px;">
+    <span id="gh-token-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;flex-shrink:0;"></span>
+    <span id="gh-token-label" style="color:var(--text-dim);">No token saved</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    <div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Personal Access Token</div>
+      <div style="display:flex;gap:8px;">
+        <input id="gh-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+          style="flex:1;background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;padding:7px 10px;border-radius:4px;outline:none;"
+          onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor=''">
+        <button onclick="ghSaveToken()" style="background:var(--amber);color:#0a0e17;border:none;border-radius:4px;padding:7px 12px;font-family:var(--font-mono);font-size:10px;font-weight:700;cursor:pointer;">Save</button>
+        <button onclick="ghResetToken()" style="background:var(--surface3);color:var(--text-dim);border:1px solid var(--border);border-radius:4px;padding:7px 10px;font-family:var(--font-mono);font-size:10px;cursor:pointer;">🔑 Reset</button>
+      </div>
+      <div style="font-size:8px;color:var(--text-dim);margin-top:3px;">Needs <code>repo</code> scope. Stored in browser localStorage only.</div>
+    </div>
+    <div>
+      <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Repository (owner/repo)</div>
+      <input id="gh-repo" type="text" placeholder="username/my-ignition-data"
+        style="width:100%;background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;padding:7px 10px;border-radius:4px;outline:none;"
+        onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor=''">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div>
+        <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Weekly Snapshot path</div>
+        <input id="gh-path" type="text" value="data/weekly_snapshot.txt"
+          style="width:100%;background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;padding:7px 10px;border-radius:4px;outline:none;"
+          onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor=''">
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Rank snapshot path</div>
+        <input id="gh-snap-path" type="text" value="data/rank_snapshot.json"
+          style="width:100%;background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);font-family:var(--font-mono);font-size:10px;padding:7px 10px;border-radius:4px;outline:none;"
+          onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor=''">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button onclick="ghSaveConfig();ghFetchWeeklySnapshot();"
+        style="background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;padding:10px;font-family:var(--font-mono);font-size:10px;cursor:pointer;text-align:center;">
+        ⬇ Pull Weekly Snapshot<br><span style="color:var(--text-dim);font-size:9px;">loads .txt from GitHub</span>
+      </button>
+      <button onclick="ghSaveConfig();ghPushRankSnapshot();"
+        style="background:var(--blue-dim);border:1px solid rgba(96,165,250,0.3);color:var(--blue);border-radius:4px;padding:10px;font-family:var(--font-mono);font-size:10px;cursor:pointer;text-align:center;">
+        ⬆ Push Rank Snapshot<br><span style="color:var(--text-dim);font-size:9px;">saves today's rankings</span>
+      </button>
+    </div>
+    <div id="gh-last-push-info" style="display:none;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-size:9px;color:var(--text-dim);">
+      Last push: <span id="gh-last-push-label" style="color:var(--green);"></span>
+      &nbsp;·&nbsp;<span id="gh-last-push-count" style="color:var(--text-secondary);"></span>
+    </div>
+    <div id="gh-status" style="font-size:9px;color:var(--text-dim);min-height:14px;text-align:center;"></div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div id="legend">
+  <div class="leg-item"><span style="font-size:11px;">🔥</span> broker upgrade bonus</div>
+  <div class="leg-item"><span style="font-size:11px;">🔥🔥</span> standout beat &gt;25%</div>
+  <div class="leg-item"><span style="color:var(--red);font-size:11px;">⚑</span> acquisition &gt;15% rev</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--green);"></div> Shares Low &lt;134m</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--amber);"></div> 134–495m</div>
+  <div class="leg-item"><div class="leg-dot" style="background:var(--red);"></div> High &gt;495m</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+    <input id="ticker-search" type="text" placeholder="🔍 Lookup ticker…" autocomplete="off" spellcheck="false"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:11px;padding:3px 8px;width:160px;outline:none;"
+      oninput="ignTickerSearch(this.value)" onkeydown="if(event.key==='Escape'){this.value='';ignTickerSearch('');}">
+    <span style="font-size:9px;color:var(--text-dim);">Double-click row for scorecard</span>
+  </div>
+</div>
+
+<!-- Table -->
+<div id="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="th th-left" style="width:32px;"   onclick="ignSort('rank')">#</th>
+        <th class="th"         style="width:40px;"   title="Position change vs prior day">Δ</th>
+        <th class="th th-left" style="width:120px;"  onclick="ignSort('tidm')">TIDM</th>
+        <th class="th th-left" style="min-width:130px;" onclick="ignSort('name')">Name</th>
+        <th class="th th-left" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
+        <th class="th"         style="width:58px;"   onclick="ignSort('yr_end')">Yr End</th>
+        <th class="th"         style="width:30px;"   onclick="ignSort('qtr')">Q</th>
+        <th class="th"         style="width:40px;">New Hi</th>
+        <th class="th th-amber" style="width:190px;" id="rank-th">
+          <span id="ign-sort-lbl" onclick="ignCycleSort()" style="cursor:pointer;">⚡ Rank</span>
+        </th>
+        <th class="th th-blue" style="width:46px;border-left:2px solid var(--border-bright);" title="200d MA">LT</th>
+        <th class="th th-blue" style="width:46px;" title="100d MA">MT</th>
+        <th class="th th-blue" style="width:46px;" title="50d MA">ST</th>
+        <th class="th th-blue" style="width:44px;" onclick="ignSort('rsi')">RSI</th>
+        <th class="th"         style="width:90px;border-left:1px solid var(--border-bright);" onclick="ignSort('broker_mom')">Broker Mom</th>
+        <th class="th"         style="width:68px;border-left:1px solid var(--border-bright);" onclick="ignSort('mktcap')">MCap</th>
+        <th class="th"         style="width:54px;" onclick="ignSort('shares')">Shares</th>
+        <th class="th"         style="width:50px;" onclick="ignSort('idx_mem')">Index</th>
+      </tr>
+    </thead>
+    <tbody id="ign-body">
+      <tr><td colspan="17" style="padding:0;">
+        <div id="empty-state">
+          <div id="empty-icon">⚡</div>
+          <div id="empty-title">IgnitionV2 Ready</div>
+          <div id="empty-sub">Configure your live feed URLs via <strong style="color:var(--amber);">⚙ URLs</strong>, then press <strong style="color:var(--amber);">⚡ Load Data</strong> to ignite the screener.</div>
+        </div>
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Scorecard popup -->
+<div id="popup-overlay" onclick="closePopup()"></div>
+<div id="popup">
+  <div id="popup-bar">
+    <span>⚡ Scorecard</span>
+    <button onclick="closePopup()" style="background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
+  </div>
+  <div id="popup-body"></div>
+</div>
+
+<!-- Info modal -->
+<div id="info-modal">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <span style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;">⚡ Ignition V2 Scoring Guide</span>
+    <button onclick="toggleInfo()" style="background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;">✕</button>
+  </div>
+  <div style="font-size:10px;color:var(--text-secondary);line-height:1.8;">
+    <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">Stage 1 — Hard Exclusions</div>
+    <div>fc EPS or fc Rev below current year · EPS floor (FTSE350 &lt;5%, AIM/SC &lt;8%) · Rev floor · 200d MA falling · FY2 cliff &gt;-15% at Q2/Q3</div>
+    <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px;">Stage 2 — Ignition Score (0–99, percentile ranked)</div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
+      <div>Latest half beat vs prior year</div><div style="color:var(--amber);text-align:right;">25%</div>
+      <div>fc EPS growth % (coherence-capped at 4× Rev)</div><div style="color:var(--amber);text-align:right;">20%</div>
+      <div>fc Revenue growth %</div><div style="color:var(--amber);text-align:right;">20%</div>
+      <div>EPS &amp; Rev breakout (vs prior max)</div><div style="color:var(--amber);text-align:right;">12%</div>
+      <div>Half-year growth rate acceleration</div><div style="color:var(--amber);text-align:right;">10%</div>
+      <div>EPS acceleration (fc vs actual)</div><div style="color:var(--amber);text-align:right;">8%</div>
+      <div>Revenue acceleration</div><div style="color:var(--amber);text-align:right;">5%</div>
+    </div>
+    <div style="margin-top:8px;color:var(--text-dim);font-size:9px;">Missing components rescaled. Score capped at 99.</div>
+    <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px;">Score Penalties</div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
+      <div>Current half EPS negative</div><div style="color:var(--red);text-align:right;">× 0.40</div>
+      <div>Current half EPS negative AND fc FY EPS also negative</div><div style="color:var(--red);text-align:right;">× 0.28</div>
+      <div>Revenue base floor: neither FY act nor fc rev ≥ £5m</div><div style="color:var(--red);text-align:right;">× 0.50</div>
+    </div>
+    <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px;">Bonuses</div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
+      <div>fc EPS forecast new high</div><div style="color:var(--green);text-align:right;">+5pts</div>
+      <div>fc Revenue forecast new high</div><div style="color:var(--green);text-align:right;">+3pts</div>
+      <div>Standout half-year beat &gt;25%</div><div style="color:var(--text-dim);text-align:right;">🔥🔥 flag only</div>
+      <div>Broker EPS 1m &gt;2%/&gt;5%/&gt;15%</div><div style="color:var(--green);text-align:right;">+2/+4/+6pts 🔥</div>
+      <div>Broker Rev 1m &gt;2%/&gt;5%/&gt;15%</div><div style="color:var(--green);text-align:right;">+2/+3/+4pts 🔥</div>
+      <div>Both EPS &amp; Rev upgraded</div><div style="color:var(--green);text-align:right;">+2pts extra 🔥</div>
+      <div>1w still rising</div><div style="color:var(--green);text-align:right;">+1pt</div>
+      <div>1w mild reversal</div><div style="color:var(--red);text-align:right;">−1pt</div>
+      <div>1w sharp reversal &gt;-3%</div><div style="color:var(--red);text-align:right;">−2pts</div>
+    </div>
+    <div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px;">Stage 3 — Rank = Ignition × MA Multiplier</div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:3px 16px;">
+      <div>3 MAs rising</div><div style="color:var(--green);text-align:right;">× 1.00</div>
+      <div>2 MAs rising</div><div style="color:var(--amber);text-align:right;">× 0.85</div>
+      <div>1 MA rising</div><div style="color:var(--amber);text-align:right;">× 0.70</div>
+      <div>0 MAs rising</div><div style="color:var(--red);text-align:right;">× 0.55</div>
+    </div>
+    <div style="margin-top:10px;color:var(--text-dim);font-size:9px;">Click ⚡ Rank to toggle Rank / Ignition sort. Double-click any row for scorecard.</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// IGNITION V2
+// ═══════════════════════════════════════════════════════════
+
+// localStorage keys
+var K = {
+  URLS:      'ignitev2_urls_v1',
+  WS:        'ignitev2_ws_v1',
+  GH_TOKEN:  'ignitev2_gh_token',
+  GH_REPO:   'ignitev2_gh_repo',
+  GH_PATH:   'ignitev2_gh_path',
+  GH_SNAP:   'ignitev2_gh_snap_path',
+  RANK_PREV: 'ignitev2_rank_prev',
+};
+
+var NUM_URLS    = 25;
+var SHARES_LOW  = 134;
+var SHARES_HIGH = 495;
+
+// Runtime state
+var liveData      = {};   // TIDM → raw CSV row
+var weeklySnap    = {};   // TIDM → parsed snapshot object
+var ignData       = [];   // final scored rows
+var ignSortKey    = 'rank';
+var ignSortAsc    = false;
+var prevRanks     = {};   // TIDM → prior-day position (integer)
+var prevRanksDate = '';   // ISO date of prevRanks
+
+// ── Init ──
+(function init(){
+  buildUrlList();
+  loadSavedUrls();
+  updateUrlCountBadge();
+  loadGitHubConfig();
+  loadCachedWeeklySnapshot();
+  updateWeightBadge();
+  if(ls(K.GH_TOKEN) && ls(K.GH_REPO)){
+    ghFetchWeeklySnapshot(true);
+    ghFetchRankSnapshot(true);
+  }
+})();
+
+// localStorage helpers
+function ls(k)    { return localStorage.getItem(k)||''; }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function lsDel(k)  { try{ localStorage.removeItem(k); }catch(e){} }
+
+// ═══════════════════════════════════════════════════════════
+// URL MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+function buildUrlList(){
+  var sections = [
+    { label:'Feed Group A', start:1,  end:6  },
+    { label:'Feed Group B', start:7,  end:12 },
+    { label:'Feed Group C', start:13, end:18 },
+    { label:'Feed Group D', start:19, end:24 },
+    { label:'Spare',        start:25, end:25 },
+  ];
+  var html = '';
+  sections.forEach(function(s){
+    html += '<div class="url-section-hdr">'+s.label+'</div>';
+    for(var i = s.start; i <= s.end; i++){
+      html += '<div class="url-row">'
+        +'<span class="url-num">'+i+'</span>'
+        +'<input class="url-input" id="url-'+i+'" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=..." autocomplete="off" spellcheck="false" oninput="updateUrlCountBadge()">'
+        +'<span class="url-status-icon" id="url-icon-'+i+'">·</span>'
+        +'</div>';
+    }
+  });
+  document.getElementById('url-list').innerHTML = html;
+}
+
+function loadSavedUrls(){
+  var saved = []; try{ saved = JSON.parse(ls(K.URLS)); }catch(e){}
+  for(var i = 0; i < saved.length && i < NUM_URLS; i++){
+    var el = document.getElementById('url-'+(i+1));
+    if(el && saved[i]) el.value = saved[i];
+  }
+}
+
+function saveUrls(){
+  var urls = [];
+  for(var i = 1; i <= NUM_URLS; i++){
+    var el = document.getElementById('url-'+i);
+    urls.push(el ? el.value.trim() : '');
+  }
+  lsSet(K.URLS, JSON.stringify(urls));
+  showToast('✓ URLs saved ('+urls.filter(Boolean).length+' populated)','ok');
+  updateUrlCountBadge();
+}
+
+function clearAllUrls(){
+  if(!confirm('Clear all '+NUM_URLS+' URL slots?')) return;
+  for(var i = 1; i <= NUM_URLS; i++){ var el = document.getElementById('url-'+i); if(el) el.value = ''; }
+  lsDel(K.URLS);
+  updateUrlCountBadge();
+  showToast('URL slots cleared','warn');
+}
+
+function getActiveUrls(){
+  var saved = []; try{ saved = JSON.parse(ls(K.URLS)); }catch(e){}
+  var active = [];
+  for(var i = 1; i <= NUM_URLS; i++){
+    var el = document.getElementById('url-'+i);
+    var v  = (el ? el.value.trim() : '') || (saved[i-1]||'');
+    if(v) active.push({ idx:i, url:v });
+  }
+  return active;
+}
+
+function updateUrlCountBadge(){
+  var count = 0;
+  for(var i = 1; i <= NUM_URLS; i++){ var el = document.getElementById('url-'+i); if(el && el.value.trim()) count++; }
+  var b = document.getElementById('url-count-badge');
+  if(b) b.textContent = count ? '('+count+')' : '';
+}
+
+function toggleUrlPanel(){ document.getElementById('url-panel').classList.toggle('open'); }
+
+function setUrlIcon(idx, icon, color){
+  var el = document.getElementById('url-icon-'+idx);
+  if(el){ el.textContent = icon; el.style.color = color; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════════════════════
+function refreshData(){
+  var active = getActiveUrls();
+  if(!active.length){ toggleUrlPanel(); showToast('Add URLs first','warn'); return; }
+
+  var btn = document.getElementById('refresh-btn');
+  btn.textContent = '⏳ Loading…'; btn.disabled = true;
+  document.getElementById('data-dot').className = 'status-dot loading';
+  document.getElementById('data-status').textContent = 'Fetching '+active.length+' feed'+(active.length>1?'s…':'…');
+  for(var i = 1; i <= NUM_URLS; i++) setUrlIcon(i, '·', '');
+
+  var allRows = [], pending = active.length, errors = 0;
+  active.forEach(function(entry){
+    fetch(entry.url)
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+      .then(function(text){
+        allRows = allRows.concat(parseCsv(text));
+        setUrlIcon(entry.idx, '✓', 'var(--green)');
+      })
+      .catch(function(e){
+        errors++;
+        setUrlIcon(entry.idx, '✗', 'var(--red)');
+        console.warn('URL '+entry.idx+':', e.message);
+      })
+      .finally(function(){ if(--pending === 0) onDataLoaded(allRows, errors, active.length); });
+  });
+}
+
+function onDataLoaded(rows, errors, total){
+  var btn = document.getElementById('refresh-btn');
+  btn.textContent = '⚡ Load Data'; btn.disabled = false;
+
+  if(!rows.length){
+    document.getElementById('data-dot').className = 'status-dot error';
+    document.getElementById('data-status').textContent = 'Failed to load';
+    showToast('No data returned — check URLs','err');
+    return;
+  }
+
+  // ── WIRE-UP NOTE: adjust TIDM field name(s) below once CSV headers are known ──
+  liveData = {};
+  rows.forEach(function(r){
+    var tid = (r['TIDM']||r['Ticker']||'').trim().toUpperCase();
+    if(tid) liveData[tid] = r;
+  });
+
+  var ts = fmtTime()+' · '+Object.keys(liveData).length+' tickers'+(errors?' · '+errors+'/'+total+' errors':'');
+  document.getElementById('data-dot').className = 'status-dot live';
+  document.getElementById('data-status').textContent = ts;
+  document.getElementById('last-refresh').textContent = 'Updated '+ts;
+  showToast('✓ Data loaded — '+Object.keys(liveData).length+' tickers'+(errors?' ('+errors+' errors)':''),'ok');
+  ignRun();
+}
+
+// ═══════════════════════════════════════════════════════════
+// WEEKLY SNAPSHOT — upload, parse, cache
+// ═══════════════════════════════════════════════════════════
+function loadWeeklySnapshot(input){
+  var file = input.files[0]; if(!file) return;
+  document.getElementById('ws-dot').className = 'status-dot loading';
+  document.getElementById('ws-status').textContent = 'Parsing…';
+  var reader = new FileReader();
+  reader.onload = function(e){ processWeeklySnapshot(e.target.result, file.name); };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function processWeeklySnapshot(text, fname){
+  var result = parseWeeklySnapshotText(text);
+  weeklySnap = result.data;
+  lsSet(K.WS, text);
+  setWsLoaded(fname, Object.keys(weeklySnap).length, result.latestDate);
+  if(Object.keys(liveData).length) ignRun();
+}
+
+function parseWeeklySnapshotText(text){
+  var SEP    = '============================================================\nSHARESCOPE DATA BLOCK';
+  var blocks = text.split(SEP);
+  var data   = {}, latestDate = '';
+
+  for(var bi = 1; bi < blocks.length; bi++){
+    var block = blocks[bi];
+    var tidmM = block.match(/^[\s\u2014\u2013-]+([A-Z0-9.]+)/m);
+    if(!tidmM) continue;
+    var tidm = tidmM[1].trim();
+    var wsStart = block.indexOf('── WEEKLY SNAPSHOT');
+    if(wsStart === -1) continue;
+    var wsEnd  = block.indexOf('============================================================', wsStart);
+    var wsText = wsEnd === -1 ? block.substring(wsStart) : block.substring(wsStart, wsEnd);
+    var snap   = parseSnapshotBlock(wsText, tidm);
+    if(snap){ data[tidm] = snap; if(snap.latestDate > latestDate) latestDate = snap.latestDate; }
+  }
+  return { data:data, latestDate:latestDate };
+}
+
+function parseSnapshotBlock(wsText, tidm){
+  var lines  = wsText.split(/\r?\n/), rows = [], inData = false;
+  for(var i = 0; i < lines.length; i++){
+    var line = lines[i];
+    if(/^-{20,}/.test(line)){ inData = !inData; continue; }
+    if(!inData || /^\s*Date\s+EPS/.test(line)) continue;
+    var m = line.match(/^\s*(\d{1,2}\s+\w+\s+\d{2})\s+([\d.]+)\s+([\d.]+)\s+[£]?([\d.]+)p?/);
+    if(m) rows.push({ date:m[1].trim(), eps:parseFloat(m[2]), rev:parseFloat(m[3]), price:parseFloat(m[4]) });
+  }
+  if(!rows.length) return null;
+
+  var epsNetM   = wsText.match(/EPS net change \(full period\)\s*:\s*([+-]?[\d.]+%)/);
+  var epsTrendM = wsText.match(/EPS last-4-week trend\s*:\s*(\w+)/);
+  var earliest  = rows[0], latest = rows[rows.length-1];
+  var ref4w     = rows.length >= 4 ? rows[rows.length-4] : rows[0];
+  var ref1w     = rows.length >= 2 ? rows[rows.length-2] : rows[0];
+  function pct(a,b){ return a!==0?((b-a)/Math.abs(a))*100:0; }
+
+  return {
+    tidm:        tidm,
+    rows:        rows,
+    latestDate:  latest.date,
+    eps_latest:  latest.eps,   rev_latest:  latest.rev,
+    eps_earliest:earliest.eps, rev_earliest:earliest.rev,
+    eps_net_pct: epsNetM  ? epsNetM[1]  : null,
+    eps_trend:   epsTrendM? epsTrendM[1]: null,  // RISING | FLAT | FALLING
+    eps_1m_pct:  pct(ref4w.eps, latest.eps),
+    rev_1m_pct:  pct(ref4w.rev, latest.rev),
+    eps_1w_pct:  pct(ref1w.eps, latest.eps),
+    rev_1w_pct:  pct(ref1w.rev, latest.rev),
+  };
+}
+
+function setWsLoaded(fname, count, date){
+  document.getElementById('ws-dot').className           = 'status-dot live';
+  document.getElementById('ws-status').textContent      = count+' tickers'+(date?' · '+date:'');
+  document.getElementById('ws-file-name').textContent   = fname||'—';
+  document.getElementById('ws-gh-btn').style.display    = '';
+  document.getElementById('ws-clear-btn').style.display = '';
+  var b = document.getElementById('ws-ticker-count');
+  b.textContent = count+' tickers parsed'; b.style.display = '';
+  showToast('✓ Weekly Snapshot — '+count+' tickers','ok');
+}
+
+function clearWeeklySnapshot(){
+  weeklySnap = {}; lsDel(K.WS);
+  document.getElementById('ws-dot').className           = 'status-dot';
+  document.getElementById('ws-status').textContent      = 'Weekly Snapshot not loaded';
+  document.getElementById('ws-file-name').textContent   = '—';
+  document.getElementById('ws-gh-btn').style.display    = 'none';
+  document.getElementById('ws-clear-btn').style.display = 'none';
+  document.getElementById('ws-ticker-count').style.display = 'none';
+  showToast('Weekly Snapshot cleared','warn');
+}
+
+function loadCachedWeeklySnapshot(){
+  var raw = ls(K.WS); if(!raw) return;
+  try{
+    var result = parseWeeklySnapshotText(raw);
+    weeklySnap = result.data;
+    var count  = Object.keys(weeklySnap).length; if(!count) return;
+    document.getElementById('ws-dot').className      = 'status-dot';
+    document.getElementById('ws-status').textContent = 'Cached · '+count+' tickers'+(result.latestDate?' · '+result.latestDate:'');
+    document.getElementById('ws-gh-btn').style.display    = '';
+    document.getElementById('ws-clear-btn').style.display = '';
+    var b = document.getElementById('ws-ticker-count');
+    b.textContent = count+' tickers (cached)'; b.style.display = '';
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════
+// GITHUB SYNC
+// ═══════════════════════════════════════════════════════════
+function openGitHubPanel(){
+  document.getElementById('gh-panel').style.display   = 'block';
+  document.getElementById('gh-overlay').style.display = 'block';
+  document.getElementById('gh-status').textContent    = '';
+  updateGhTokenDot();
+}
+function closeGitHubPanel(){
+  document.getElementById('gh-panel').style.display   = 'none';
+  document.getElementById('gh-overlay').style.display = 'none';
+}
+
+function loadGitHubConfig(){
+  var map = { 'gh-token':K.GH_TOKEN, 'gh-repo':K.GH_REPO, 'gh-path':K.GH_PATH, 'gh-snap-path':K.GH_SNAP };
+  for(var id in map){ var el=document.getElementById(id); if(el) el.value=ls(map[id]); }
+  loadPrevRanks();
+  updateGhLastPushInfo();
+}
+
+function ghSaveToken(){
+  var token = (document.getElementById('gh-token').value||'').trim();
+  if(!token){ showToast('Enter a token first','warn'); return; }
+  lsSet(K.GH_TOKEN, token);
+  var repo = (document.getElementById('gh-repo').value||'').trim();
+  if(repo) lsSet(K.GH_REPO, repo);
+  updateGhTokenDot(); showToast('Token saved','ok');
+}
+
+function ghResetToken(){
+  lsDel(K.GH_TOKEN); lsDel(K.GH_REPO);
+  document.getElementById('gh-token').value = '';
+  document.getElementById('gh-repo').value  = '';
+  updateGhTokenDot(); showToast('Token and repo cleared','ok');
+}
+
+function ghSaveConfig(){
+  var map = { 'gh-token':K.GH_TOKEN, 'gh-repo':K.GH_REPO, 'gh-path':K.GH_PATH, 'gh-snap-path':K.GH_SNAP };
+  for(var id in map){ var v=(document.getElementById(id).value||'').trim(); if(v) lsSet(map[id],v); }
+  updateGhTokenDot();
+}
+
+function updateGhTokenDot(){
+  var ok  = !!(ls(K.GH_TOKEN) && ls(K.GH_REPO));
+  var dot = document.getElementById('gh-token-dot');
+  var lbl = document.getElementById('gh-token-label');
+  if(!dot) return;
+  dot.style.background = ok ? 'var(--green)' : 'var(--text-dim)';
+  lbl.style.color      = ok ? 'var(--green)' : 'var(--text-dim)';
+  lbl.textContent      = ok ? 'Token saved · '+ls(K.GH_REPO) : (ls(K.GH_TOKEN)?'Token saved — repo missing':'No token saved');
+}
+
+// Pull Weekly Snapshot .txt
+function ghFetchWeeklySnapshot(silent){
+  var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO), path=ls(K.GH_PATH)||'data/weekly_snapshot.txt';
+  if(!token||!repo){ if(!silent) ghStatus('⚠ Token and repo required.'); return; }
+  ghStatus('⏳ Fetching snapshot…');
+  document.getElementById('ws-dot').className      = 'status-dot loading';
+  document.getElementById('ws-status').textContent = 'Fetching from GitHub…';
+  ghGet(token, repo, path)
+    .then(function(r){ return r.text(); })
+    .then(function(text){
+      processWeeklySnapshot(text, 'GitHub · '+path);
+      ghStatus('✓ Pulled '+Object.keys(weeklySnap).length+' tickers · '+fmtTime());
+      if(!silent) setTimeout(closeGitHubPanel, 1400);
+    })
+    .catch(function(e){
+      document.getElementById('ws-dot').className      = 'status-dot error';
+      document.getElementById('ws-status').textContent = 'GitHub fetch failed';
+      ghStatus('✗ '+e.message);
+      if(!silent) showToast('Pull failed: '+e.message,'err',4000);
+    });
+}
+
+// Push today's rank positions
+function ghPushRankSnapshot(){
+  if(!ignData.length){ showToast('Run scores first — no ranked data to push','warn'); return; }
+  var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO), path=ls(K.GH_SNAP)||'data/rank_snapshot.json';
+  if(!token||!repo){ ghStatus('⚠ Token and repo required.'); return; }
+
+  var sorted = ignData.slice().sort(function(a,b){ return b.rank-a.rank; });
+  var ranks  = {}; sorted.forEach(function(d,i){ ranks[d.tidm]=i+1; });
+
+  var now     = new Date();
+  var dateStr = now.toISOString().slice(0,10);
+  var label   = now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})+' '+fmtTime();
+  var payload = { _meta:{ savedAt:now.toISOString(), date:dateStr, label:label, tickers:sorted.length }, ranks:ranks };
+
+  ghStatus('⏳ Pushing rank snapshot…');
+  ghPut(token, repo, path, JSON.stringify(payload,null,2), 'IgnitionV2 rank snapshot '+label)
+    .then(function(){
+      lsSet(K.RANK_PREV, JSON.stringify({ date:dateStr, label:label, ranks:ranks }));
+      prevRanks=ranks; prevRanksDate=dateStr;
+      updateGhLastPushInfo();
+      ghStatus('✓ Pushed '+sorted.length+' tickers · '+label);
+      showToast('✓ Rank snapshot saved · '+label,'ok');
+    })
+    .catch(function(e){ ghStatus('✗ '+e.message); showToast('Push failed: '+e.message,'err',4000); });
+}
+
+// Pull prev-day rank snapshot → delta arrows
+function ghFetchRankSnapshot(silent){
+  var token=ls(K.GH_TOKEN), repo=ls(K.GH_REPO), path=ls(K.GH_SNAP)||'data/rank_snapshot.json';
+  if(!token||!repo) return;
+  ghGet(token, repo, path)
+    .then(function(r){ return r.json(); })
+    .then(function(payload){
+      if(!payload._meta||!payload.ranks) return;
+      prevRanks=payload.ranks; prevRanksDate=payload._meta.date||'';
+      lsSet(K.RANK_PREV, JSON.stringify({ date:prevRanksDate, label:payload._meta.label||'', ranks:prevRanks }));
+      updateGhLastPushInfo();
+      if(ignData.length) ignRender();
+      if(!silent) showToast('✓ Rank snapshot loaded · '+(payload._meta.label||''),'ok');
+    })
+    .catch(function(e){ if(!silent) console.warn('Rank snapshot pull:', e.message); });
+}
+
+// GitHub API primitives
+function ghGet(token, repo, path){
+  return fetch('https://api.github.com/repos/'+repo+'/contents/'+path, {
+    headers:{ 'Authorization':'token '+token, 'Accept':'application/vnd.github.v3.raw' }
+  }).then(function(r){ if(!r.ok) throw new Error('GitHub '+r.status); return r; });
+}
+
+function ghPut(token, repo, path, content, message){
+  var apiUrl  = 'https://api.github.com/repos/'+repo+'/contents/'+path;
+  var headers = { 'Authorization':'token '+token, 'Content-Type':'application/json', 'Accept':'application/vnd.github.v3+json' };
+  var b64; try{ b64=btoa(unescape(encodeURIComponent(content))); }catch(e){ return Promise.reject(new Error('Encoding: '+e.message)); }
+  function doPut(sha){
+    var body = { message:message, content:b64 }; if(sha) body.sha=sha;
+    return fetch(apiUrl,{ method:'PUT', headers:headers, body:JSON.stringify(body) }).then(function(r){
+      if(r.status===409||r.status===422){
+        return fetch(apiUrl,{ headers:{ 'Authorization':'token '+token, 'Accept':'application/vnd.github.v3+json' } })
+          .then(function(r2){ return r2.ok?r2.json():null; })
+          .then(function(ex){ if(ex&&ex.sha) return doPut(ex.sha); throw new Error('Cannot resolve SHA'); });
+      }
+      if(!r.ok) return r.text().then(function(b){ throw new Error('HTTP '+r.status+': '+b.substring(0,120)); });
+      return r;
+    });
+  }
+  return doPut(null);
+}
+
+function ghStatus(msg){ var el=document.getElementById('gh-status'); if(el) el.textContent=msg; }
+
+function loadPrevRanks(){
+  try{ var obj=JSON.parse(ls(K.RANK_PREV)); prevRanks=obj.ranks||{}; prevRanksDate=obj.date||''; }catch(e){}
+}
+
+function updateGhLastPushInfo(){
+  try{
+    var obj=JSON.parse(ls(K.RANK_PREV));
+    var el=document.getElementById('gh-last-push-info'); if(!el) return;
+    el.style.display='block';
+    document.getElementById('gh-last-push-label').textContent = obj.label||obj.date||'—';
+    document.getElementById('gh-last-push-count').textContent = Object.keys(obj.ranks||{}).length+' tickers';
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════
+// RANK DELTA
+// ═══════════════════════════════════════════════════════════
+function getRankDelta(tidm, pos){
+  if(!Object.keys(prevRanks).length) return null;
+  if(prevRanksDate === new Date().toISOString().slice(0,10)) return null; // same day
+  var prev = prevRanks[tidm];
+  if(prev === undefined) return { isNew:true };
+  return { delta: prev - pos };
+}
+
+function renderDelta(tidm, pos){
+  var d = getRankDelta(tidm, pos);
+  if(!d)           return '<span style="color:var(--text-dim);font-size:9px;">—</span>';
+  if(d.isNew)      return '<span style="color:var(--teal);font-size:9px;font-weight:700;">NEW</span>';
+  if(d.delta > 0)  return '<span style="color:var(--green);font-size:9px;font-weight:700;">▲'+d.delta+'</span>';
+  if(d.delta < 0)  return '<span style="color:var(--red);font-size:9px;font-weight:700;">▼'+Math.abs(d.delta)+'</span>';
+  return '<span style="color:var(--text-dim);font-size:9px;">═</span>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// CSV PARSER
+// ═══════════════════════════════════════════════════════════
+function parseCsv(text){
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  var lines   = text.split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if(!lines.length) return [];
+  var headers = splitCsvLine(lines[0]).map(function(h){ return h.trim(); });
+  return lines.slice(1).map(function(line){
+    var vals=splitCsvLine(line), obj={};
+    headers.forEach(function(h,i){ obj[h]=(vals[i]||'').trim(); });
+    return obj;
+  }).filter(function(r){ return Object.values(r).some(Boolean); });
+}
+
+function splitCsvLine(line){
+  var result=[], cur='', inQ=false;
+  for(var i=0;i<line.length;i++){
+    var ch=line[i];
+    if(ch==='"') inQ=!inQ;
+    else if(ch===','&&!inQ){ result.push(cur); cur=''; }
+    else cur+=ch;
+  }
+  result.push(cur); return result;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCORING
+// ── Stub: passes raw CSV fields through to the table.
+// ── Wire up field names and full scoring engine here once
+// ── CSV column headers are confirmed from the URL feeds.
+// ═══════════════════════════════════════════════════════════
+function ignRun(){
+  ignData = [];
+  if(!Object.keys(liveData).length){ ignRender(); return; }
+
+  Object.keys(liveData).forEach(function(tid){
+    var r  = liveData[tid];
+    var ws = weeklySnap[tid]||null;
+    ignData.push({
+      tidm:         tid,
+      name:         r['Name']     ||r['name']   ||tid,
+      sector:       r['Sector']   ||r['sector'] ||'',
+      yr_end:       r['YrEnd']    ||r['yr_end'] ||'',
+      qtr:          r['Qtr']      ||r['qtr']    ||'',
+      ignition:     pf(r['Ignition']||r['ignition'])||0,
+      rank:         pf(r['Rank']    ||r['rank'])    ||0,
+      lt:           flag(r['LT']||r['lt']),
+      mt:           flag(r['MT']||r['mt']),
+      st:           flag(r['ST']||r['st']),
+      rsi:          pf(r['RSI']  ||r['rsi']),
+      mktcap:       pf(r['MCap'] ||r['mktcap']),
+      shares:       pf(r['Shares']||r['shares']),
+      idx_mem:      r['Index']   ||r['idx_mem']||'',
+      broker_mom:   ws ? ws.eps_1m_pct : pf(r['BrokerMom']||r['broker_mom']),
+      eps_new_high: false,
+      rev_new_high: false,
+      _raw: r,
+      _ws:  ws,
+    });
+  });
+
+  ignData.sort(function(a,b){ return b.rank-a.rank; });
+  ignRender();
+}
+
+function pf(v){ var n=parseFloat(String(v||'').replace(/,/g,'')); return isNaN(n)?null:n; }
+function flag(v){ return String(v||'').toLowerCase()==='true'||String(v||'')==='1'; }
+
+// ═══════════════════════════════════════════════════════════
+// SORT
+// ═══════════════════════════════════════════════════════════
+function ignSort(key){
+  ignSortAsc = (ignSortKey===key) ? !ignSortAsc : false;
+  ignSortKey = key;
+  ignRender();
+}
+function ignCycleSort(){
+  ignSortKey = ignSortKey==='rank'?'ignition':'rank';
+  ignSortAsc = false;
+  var lbl = ignSortKey==='rank'?'⚡ Rank':'⚡ Ignition';
+  document.getElementById('ign-sort-lbl').textContent  = lbl;
+  document.getElementById('sort-mode-badge').textContent = lbl;
+  ignRender();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+function ignTickerSearch(q){ ignRender(q.trim().toUpperCase()); }
+
+function ignRender(filterQ){
+  var tbody = document.getElementById('ign-body');
+  var data  = ignData.slice();
+
+  data.sort(function(a,b){
+    var av=a[ignSortKey], bv=b[ignSortKey];
+    av=(av===undefined||av===null||av==='')?(ignSortAsc?Infinity:-Infinity):av;
+    bv=(bv===undefined||bv===null||bv==='')?(ignSortAsc?Infinity:-Infinity):bv;
+    return typeof av==='string'?(ignSortAsc?av.localeCompare(bv):bv.localeCompare(av)):(ignSortAsc?av-bv:bv-av);
+  });
+
+  if(filterQ) data=data.filter(function(d){
+    return d.tidm.indexOf(filterQ)!==-1||(d.name&&d.name.toUpperCase().indexOf(filterQ)!==-1);
+  });
+
+  if(!data.length){
+    tbody.innerHTML='<tr><td colspan="17" style="padding:0;"><div id="empty-state">'
+      +'<div id="empty-icon">⚡</div>'
+      +'<div id="empty-title">'+(filterQ?'No match for "'+filterQ+'"':'No data')+'</div>'
+      +'<div id="empty-sub">'+(filterQ?'Try a different ticker or name.':'Configure URLs and press Load Data.')+'</div>'
+      +'</div></td></tr>';
+    document.getElementById('count-badge').style.display     = 'none';
+    document.getElementById('sort-mode-badge').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('count-badge').style.display     = '';
+  document.getElementById('count-badge').textContent       = data.length+' stocks';
+  document.getElementById('sort-mode-badge').style.display = '';
+
+  var maxRank = Math.max.apply(null, data.map(function(d){ return d.rank||0; }))||1;
+  var html    = '';
+
+  data.forEach(function(d, idx){
+    var pos       = idx+1;
+    var rankCol   = d.rank>=70?'var(--green)':d.rank>=45?'var(--amber)':'var(--red)';
+    var barPct    = Math.min(100,(d.rank/maxRank)*100);
+    var sharesCol = d.shares!==null?(d.shares<SHARES_LOW?'var(--green)':d.shares<=SHARES_HIGH?'var(--amber)':'var(--red)'):'var(--text-dim)';
+    var rsiCol    = d.rsi!==null?(d.rsi>=60?'var(--amber)':d.rsi<=35?'var(--blue)':'var(--text-secondary)'):'var(--text-dim)';
+    var capStr    = d.mktcap!==null?(d.mktcap>=1000?(d.mktcap/1000).toFixed(1)+'b':d.mktcap.toFixed(0)+'m'):'—';
+    var momStr    = d.broker_mom!==null?((d.broker_mom>0?'+':'')+d.broker_mom.toFixed(1)+'%'):'—';
+    var momCol    = d.broker_mom!==null?(d.broker_mom>0?'var(--green)':d.broker_mom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
+    function maCell(v){ return '<td class="'+(v===true?'ma-on':v===false?'ma-off':'ma-nil')+'" style="font-size:10px;text-align:center;">'+(v===true?'✓':v===false?'✗':'·')+'</td>'; }
+
+    html+='<tr class="tr-data" ondblclick="ignOpenPopup(\''+d.tidm+'\')">'
+      +'<td class="td-left td-dim" style="font-size:9px;">'+pos+'</td>'
+      +'<td style="text-align:center;">'+renderDelta(d.tidm,pos)+'</td>'
+      +'<td class="td-left" style="font-weight:700;font-size:11px;color:var(--text-primary);">'+escHtml(d.tidm)+'</td>'
+      +'<td class="td-left" style="font-size:10px;color:var(--text-secondary);max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.name||'')+'</td>'
+      +'<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>'
+      +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.yr_end||'')+'</td>'
+      +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.qtr||'')+'</td>'
+      +'<td style="text-align:center;font-size:9px;">'+(d.eps_new_high||d.rev_new_high?'<span style="color:var(--green);">★</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'
+      +'<td><div class="rank-bar-wrap">'
+        +'<div class="rank-bar-track"><div class="rank-bar-fill" style="width:'+barPct.toFixed(0)+'%;background:'+rankCol+';"></div></div>'
+        +'<span class="rank-score" style="color:'+rankCol+';">'+(d.rank?d.rank.toFixed(0):'—')+'</span>'
+      +'</div></td>'
+      +maCell(d.lt)+maCell(d.mt)+maCell(d.st)
+      +'<td style="color:'+rsiCol+';font-size:10px;">'+(d.rsi!==null?d.rsi.toFixed(0):'—')+'</td>'
+      +'<td style="color:'+momCol+';font-size:10px;border-left:1px solid var(--border);">'+momStr+'</td>'
+      +'<td style="font-size:10px;border-left:1px solid var(--border);">'+capStr+'</td>'
+      +'<td style="font-size:10px;color:'+sharesCol+';">'+(d.shares!==null?d.shares.toFixed(0)+'m':'—')+'</td>'
+      +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.idx_mem||'')+'</td>'
+      +'</tr>';
+  });
+
+  tbody.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCORECARD POPUP (stub — expands with scoring engine)
+// ═══════════════════════════════════════════════════════════
+function ignOpenPopup(tidm){
+  var d=ignData.filter(function(x){ return x.tidm===tidm; })[0]; if(!d) return;
+  var ws=d._ws;
+  document.getElementById('popup-body').innerHTML=
+    '<div style="padding:20px;color:var(--text-secondary);font-size:11px;overflow-y:auto;height:100%;">'
+    +'<div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--amber);margin-bottom:4px;">'+escHtml(d.tidm)+' — '+escHtml(d.name||'')+'</div>'
+    +(ws
+      ?'<div style="font-size:9px;color:var(--text-dim);margin-bottom:12px;">'
+        +'Broker trend: <span style="color:'+(ws.eps_trend==='RISING'?'var(--green)':ws.eps_trend==='FALLING'?'var(--red)':'var(--text-dim)')+';">'+ws.eps_trend+'</span>'
+        +' &nbsp;·&nbsp; EPS 1m: <span style="color:'+(ws.eps_1m_pct>0?'var(--green)':'var(--red)')+';">'+(ws.eps_1m_pct>0?'+':'')+ws.eps_1m_pct.toFixed(2)+'%</span>'
+        +' &nbsp;·&nbsp; Rev 1m: <span style="color:'+(ws.rev_1m_pct>0?'var(--green)':'var(--red)')+';">'+(ws.rev_1m_pct>0?'+':'')+ws.rev_1m_pct.toFixed(2)+'%</span>'
+      +'</div>' : '')
+    +'<div style="color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;">Raw Feed Data</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:10px;">'
+    +Object.keys(d._raw||{}).map(function(k){
+      return '<tr style="border-bottom:1px solid var(--border);">'
+        +'<td style="padding:3px 12px 3px 0;color:var(--text-dim);white-space:nowrap;">'+escHtml(k)+'</td>'
+        +'<td style="padding:3px 0;color:var(--text-primary);">'+escHtml(String(d._raw[k]))+'</td>'
+      +'</tr>';
+    }).join('')
+    +'</table></div>';
+  document.getElementById('popup').classList.add('open');
+  document.getElementById('popup-overlay').classList.add('open');
+}
+function closePopup(){
+  document.getElementById('popup').classList.remove('open');
+  document.getElementById('popup-overlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════
+// WEIGHT BADGE
+// ═══════════════════════════════════════════════════════════
+function updateWeightBadge(){
+  var beat=parseFloat(document.getElementById('w-beat').value)||25;
+  var eg  =parseFloat(document.getElementById('w-eg').value)||20;
+  var rg  =parseFloat(document.getElementById('w-rg').value)||20;
+  var rem =100-beat-eg-rg, over=rem<0;
+  var b   =document.getElementById('w-total-badge'); if(!b) return;
+  b.textContent  = over?'✗ '+(beat+eg+rg)+'%':'rem '+rem+'%';
+  b.style.color  = over?'var(--red)':rem>=15?'var(--green)':'var(--amber)';
+  b.style.background = over?'var(--red-dim)':rem>=15?'var(--green-dim)':'var(--amber-dim)';
+}
+['w-beat','w-eg','w-rg'].forEach(function(id){
+  var el=document.getElementById(id); if(el) el.addEventListener('input',updateWeightBadge);
+});
+
+// ═══════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtTime(){ return new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+
+function showToast(msg, type, duration){
+  duration=duration||2500;
+  var col=type==='ok'?'var(--green)':type==='err'?'var(--red)':type==='warn'?'var(--amber)':'var(--blue)';
+  var t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--surface2);border:1px solid '+col+';color:var(--text-primary);padding:10px 18px;border-radius:6px;font-family:var(--font-mono);font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,0.4);transition:opacity .3s;';
+  t.textContent=msg; document.body.appendChild(t);
+  setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },300); },duration);
+}
+
+function toggleInfo(){ var m=document.getElementById('info-modal'); m.style.display=m.style.display==='block'?'none':'block'; }
+
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closePopup(); document.getElementById('info-modal').style.display='none'; } });
+</script>
+</body>
+</html>
