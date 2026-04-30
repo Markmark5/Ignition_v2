@@ -628,7 +628,9 @@ function refreshData(){
     var groupLetter = ['a','b','c','d'][groupIdx] || 'spare';
     // ── capture both entry and groupLetter in an IIFE to avoid closure bug ──
     (function(capturedEntry, capturedGroup){
-      var bustUrl = capturedEntry.url + (capturedEntry.url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + Date.now();
+      // Cache-bust rounded to 5min window — forces CDN refresh without hammering origin on every load
+      var cb5min  = Math.floor(Date.now() / 300000);
+      var bustUrl = capturedEntry.url + (capturedEntry.url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + cb5min;
       fetch(bustUrl)
         .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
         .then(function(text){
