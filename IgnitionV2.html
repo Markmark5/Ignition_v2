@@ -1547,6 +1547,28 @@ function ignRender(filterQ){
 // ═══════════════════════════════════════════════════════════
 // SCORECARD POPUP (stub — expands with scoring engine)
 // ═══════════════════════════════════════════════════════════
+// ── Breakout flag status helpers ──
+function flagStatus(curGrowth, priorGrowth, isNewHigh){
+  if(curGrowth===null) return null;
+  if(curGrowth<0) return {lbl:'FALLING',col:'var(--red)'};
+  if(!isNewHigh&&curGrowth<priorGrowth*0.85) return {lbl:'DECELERATING',col:'var(--amber)'};
+  if(curGrowth>=0&&(priorGrowth===null||curGrowth>=priorGrowth)) return {lbl:'ACCELERATING',col:'var(--green)'};
+  return {lbl:'POSITIVE',col:'var(--blue)'};
+}
+function flagRow(lbl, triggered, status, noBorder){
+  var lblCol = triggered ? 'var(--green)' : 'var(--text-secondary)';
+  var tick    = triggered ? '<span style="color:var(--green);margin-left:3px;">✓</span>'
+                          : '<span style="color:var(--text-dim);margin-left:3px;">—</span>';
+  var statHtml = status
+    ? '<span style="font-size:9px;font-weight:700;letter-spacing:.05em;color:'+status.col+';">'+status.lbl+'</span>'
+    : '<span style="font-size:9px;color:var(--text-dim);">—</span>';
+  return '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;'
+    +(noBorder?'':'border-bottom:1px solid var(--border);')+'">'
+    +'<div><span style="font-size:10px;color:'+lblCol+';">'+lbl+'</span>'+tick+'</div>'
+    +statHtml
+    +'</div>';
+}
+
 function ignOpenPopup(tidm){
   var d = ignData.filter(function(x){ return x.tidm===tidm; })[0];
   if(!d) return;
@@ -1866,25 +1888,60 @@ function ignOpenPopup(tidm){
         +hRow('PBT (m)',hP_cur,hP_1y,hP_2y,hP_3y)
       +'</table>'
       +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Breakout Flags</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-bottom:16px;font-size:10px;">'
-        +bFlag(revBreak,'Revenue actual new high')+bFlag(epsBreak,'EPS actual new high')
-        +bFlag(fcRevBreak,'fc Revenue new high')+bFlag(fcEpsBreak,'fc EPS new high')
+      // Broker | Breakout side by side
+      +'<div style="display:flex;gap:0;border-top:1px solid var(--border);margin:0 -16px;">'
+        // Left: broker upgrades
+        +'<div style="width:42%;padding:12px 14px;border-right:1px solid var(--border-b);">'
+          +'<div style="font-family:var(--font-display);font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Broker Upgrades</div>'
+          +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">EPS 1w</span>'+fmtC(bEps1w,2,'%')+'</div>'
+          +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">Rev 1w</span>'+fmtC(bRev1w,2,'%')+'</div>'
+          +'<div style="height:1px;background:var(--border);margin:6px 0;"></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">EPS 1m</span>'+fmtC(bEps1m,2,'%')+'</div>'
+          +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">Rev 1m</span>'+fmtC(bRev1m,2,'%')+'</div>'
+          +'<div style="display:flex;justify-content:space-between;padding:6px 0 0;font-size:10px;font-weight:700;border-top:1px solid var(--border);margin-top:4px;"><span style="color:var(--text-dim);">Broker Mom</span>'+fmtC(d.brokerMom,2,'%')+'</div>'
+        +'</div>'
+        // Right: breakout flags
+        +'<div style="flex:1;padding:12px 14px;">'
+          +'<div style="font-family:var(--font-display);font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Breakout Flags</div>'
+          +'<div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">Actuals — last FY vs prior FY</div>'
+          +(function(){
+            // Actual Rev status
+            var rvActGr = (fyR_1y&&fyR_2y&&fyR_2y>0)?((fyR_1y/fyR_2y-1)*100):null;
+            var rvFcGr  = (fyR_cur&&fyR_1y&&fyR_1y>0)?((fyR_cur/fyR_1y-1)*100):null;
+            var rvStat  = flagStatus(rvFcGr, rvActGr, revBreak);
+            // Actual EPS status
+            var epActGr = (fyE_1y&&fyE_2y&&fyE_2y!==0)?((fyE_1y-fyE_2y)/Math.abs(fyE_2y)*100):null;
+            var epFcGr  = (fyE_cur&&fyE_1y&&fyE_1y!==0)?((fyE_cur-fyE_1y)/Math.abs(fyE_1y)*100):null;
+            var epStat  = flagStatus(epFcGr, epActGr, epsBreak);
+            // fc Rev status
+            var fcRvGr  = (fcRev&&fyR_cur&&fyR_cur>0)?((fcRev/fyR_cur-1)*100):null;
+            var fcRvAGr = rvFcGr;
+            var fcRvStat= flagStatus(fcRvGr, fcRvAGr, fcRevBreak);
+            // fc EPS status
+            var fcEpGr  = (fcEps&&fyE_cur&&fyE_cur!==0)?((fcEps-fyE_cur)/Math.abs(fyE_cur)*100):null;
+            var fcEpAGr = epFcGr;
+            var fcEpStat= flagStatus(fcEpGr, fcEpAGr, fcEpsBreak);
+            return flagRow('Revenue actual new high', revBreak, rvStat)
+              + flagRow('EPS actual new high', epsBreak, epStat)
+              + '<div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;margin:8px 0 4px;">Forecasts — fc vs last FY</div>'
+              + flagRow('fc Revenue new high', fcRevBreak, fcRvStat)
+              + flagRow('fc EPS new high', fcEpsBreak, fcEpStat, true);
+          })()
+        +'</div>'
       +'</div>'
-      +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Debt &amp; Coverage</div>'
-      +'<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;">'
-        +'<tr style="border-bottom:1px solid var(--border);">'
-          +'<th style="'+thS('var(--text-dim)')+'text-align:left;"></th>'
-          +'<th style="'+thS('var(--text-dim)')+'">Current</th><th style="'+thS('var(--amber)')+'">fc</th>'
-        +'</tr>'
-        +'<tr><td style="padding:3px 8px;color:var(--text-dim);">ND/EBITDA</td><td style="'+tdS()+'">'+fmtN(nd,2,'x')+'</td><td style="'+tdS()+'">'+fmtN(ndFc,2,'x')+'</td></tr>'
-        +'<tr><td style="padding:3px 8px;color:var(--text-dim);">Interest Cover</td><td style="'+tdS()+'">'+fmtN(ic,1,'x')+'</td><td style="'+tdS()+'">'+fmtN(icFc,1,'x')+'</td></tr>'
-        +'<tr><td style="padding:3px 8px;color:var(--text-dim);">ND/FCF</td><td style="'+tdS()+'">'+fmtN(ndFcf,2,'x')+'</td><td style="'+tdS()+'">'+fmtN(ndFcfFc,2,'x')+'</td></tr>'
-      +'</table>'
-      +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Broker Upgrades</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:10px;">'
-        +'<div>EPS 1w: '+fmtC(bEps1w,2,'%')+'</div><div>EPS 1m: '+fmtC(bEps1m,2,'%')+'</div>'
-        +'<div>Rev 1w: '+fmtC(bRev1w,2,'%')+'</div><div>Rev 1m: '+fmtC(bRev1m,2,'%')+'</div>'
-        +'<div style="grid-column:1/-1;">Broker Mom: '+fmtC(d.brokerMom,2,'%')+'</div>'
+      // Debt strip
+      +'<div style="border-top:1px solid var(--border);padding:10px 16px;">'
+        +'<div style="font-family:var(--font-display);font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Debt &amp; Coverage</div>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:10px;">'
+          +'<tr style="border-bottom:1px solid var(--border);">'
+            +'<th style="text-align:left;font-size:8px;color:var(--text-dim);font-weight:600;padding:2px 8px 4px 0;"></th>'
+            +'<th style="font-size:8px;color:var(--text-dim);font-weight:600;text-align:right;padding:2px 8px 4px;">Current</th>'
+            +'<th style="font-size:8px;color:var(--amber);font-weight:600;text-align:right;padding:2px 0 4px;">fc</th>'
+          +'</tr>'
+          +'<tr><td style="padding:3px 8px 3px 0;color:var(--text-dim);">ND/EBITDA</td><td style="text-align:right;padding:3px 8px;">'+fmtN(nd,2,'x')+'</td><td style="text-align:right;">'+fmtN(ndFc,2,'x')+'</td></tr>'
+          +'<tr><td style="padding:3px 8px 3px 0;color:var(--text-dim);">Interest Cover</td><td style="text-align:right;padding:3px 8px;">'+fmtN(ic,1,'x')+'</td><td style="text-align:right;">'+fmtN(icFc,1,'x')+'</td></tr>'
+          +'<tr><td style="padding:3px 8px 3px 0;color:var(--text-dim);">ND/FCF</td><td style="text-align:right;padding:3px 8px;">'+fmtN(ndFcf,2,'x')+'</td><td style="text-align:right;">'+fmtN(ndFcfFc,2,'x')+'</td></tr>'
+        +'</table>'
       +'</div>'
     +'</div>'
     // RIGHT
@@ -1894,14 +1951,27 @@ function ignOpenPopup(tidm){
         +maCard(d.lt,'Long Term','200d MA')+maCard(d.mt,'Mid Term','100d MA')+maCard(d.st,'Short Term','50d MA')
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">'
-        +'<div style="background:var(--surface2);border-radius:6px;padding:10px;text-align:center;border:1px solid var(--border);">'
-          +'<div style="font-size:9px;color:var(--text-dim);margin-bottom:4px;">RSI</div>'
-          +'<div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:'+(rsi&&rsi<35?'var(--blue)':rsi&&rsi>69?'var(--red)':'var(--amber)')+';">'+(rsi!==null?rsi.toFixed(0):'—')+'</div>'
-        +'</div>'
-        +'<div style="background:var(--amber-dim);border-radius:6px;padding:10px;text-align:center;border:1px solid var(--amber-mid);">'
-          +'<div style="font-size:9px;color:var(--amber);margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Ignition</div>'
-          +'<div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:var(--amber);">'+(d.ignition!==null?d.ignition.toFixed(0):'—')+'</div>'
-        +'</div>'
+        // RSI: <34 green, 34-69 amber, >69 red
+        +(function(){
+          var rsiCol = rsi!==null?(rsi<34?'var(--green)':rsi>69?'var(--red)':'var(--amber)'):'var(--text-dim)';
+          var rsiBg  = rsi!==null?(rsi<34?'rgba(16,185,129,.08)':rsi>69?'rgba(239,68,68,.08)':'rgba(245,158,11,.08)'):'var(--surface2)';
+          var rsiBd  = rsi!==null?(rsi<34?'rgba(16,185,129,.2)':rsi>69?'rgba(239,68,68,.2)':'rgba(245,158,11,.25)'):'var(--border)';
+          return '<div style="background:'+rsiBg+';border-radius:6px;padding:10px;text-align:center;border:1px solid '+rsiBd+';">'
+            +'<div style="font-size:9px;color:'+rsiCol+';margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">RSI</div>'
+            +'<div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:'+rsiCol+';">'+(rsi!==null?rsi.toFixed(0):'—')+'</div>'
+          +'</div>';
+        })()
+        // Rank: ≥70 green, 45-69 amber, <45 red
+        +(function(){
+          var rank = d.rank||0;
+          var rkCol = rank>=70?'var(--green)':rank>=45?'var(--amber)':'var(--red)';
+          var rkBg  = rank>=70?'rgba(16,185,129,.08)':rank>=45?'rgba(245,158,11,.08)':'rgba(239,68,68,.08)';
+          var rkBd  = rank>=70?'rgba(16,185,129,.2)':rank>=45?'rgba(245,158,11,.25)':'rgba(239,68,68,.2)';
+          return '<div style="background:'+rkBg+';border-radius:6px;padding:10px;text-align:center;border:1px solid '+rkBd+';">'
+            +'<div style="font-size:9px;color:'+rkCol+';margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Rank</div>'
+            +'<div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:'+rkCol+';">'+rank.toFixed(0)+'</div>'
+          +'</div>';
+        })()
       +'</div>'
       +scoreHTML
     +'</div>'
