@@ -1882,13 +1882,16 @@ function ignOpenPopup(tidm){
         +'</div>'
         +'<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+escHtml(d.sector||'—')+' · '+escHtml(d.idx_mem||'')+(d.yr_end?' · '+escHtml(d.yr_end):'')+(qtr?' · <span style="color:var(--amber);">'+qtr+'</span>':'')+'</div>'
       +'</div>'
+    +'<div style="display:flex;align-items:center;gap:0;flex:1;">'
+      // Price — sits after name, not pushed right
+      +(priceRef!==null
+        ?'<div style="margin-left:24px;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">Price</div>'
+          +'<div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amber);">'+priceStr
+            +(pctDay!==null?' <span style="font-size:11px;font-weight:500;color:'+(pctDay>=0?'var(--green)':'var(--red)')+';">('+fmtC(pctDay,1,'%').replace(/<[^>]+>/g,'')+')</span>':'')
+          +'</div></div>'
+        :'')
+      // Right group — MCap, Shares, CTP, Ignition, Rank — pushed to far right
       +'<div style="display:flex;gap:16px;margin-left:auto;flex-wrap:wrap;align-items:center;">'
-        +(priceRef!==null
-          ?'<div style="margin-right:8px;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">Price</div>'
-            +'<div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amber);">'+priceStr
-              +(pctDay!==null?' <span style="font-size:11px;font-weight:500;color:'+(pctDay>=0?'var(--green)':'var(--red)')+';">('+fmtC(pctDay,1,'%').replace(/<[^>]+>/g,'')+')</span>':'')
-            +'</div></div>'
-          :'')
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">MCap</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+mcapStr+'</div></div>'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Shares</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(shares?Math.round(shares)+'m':'—')+'</div></div>'
         +(ctp?'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Consensus TP</div>'
@@ -1900,6 +1903,7 @@ function ignOpenPopup(tidm){
           +'<div style="font-size:8px;color:var(--green);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;">Rank</div>'
           +'<div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--green);">'+(d.rank!==null?d.rank.toFixed(0):'—')+'</div></div>'
       +'</div>'
+    +'</div>'
     +'</div>'
     // BODY — two columns
     +'<div style="display:flex;flex:1;overflow:hidden;background:var(--bg);">'
