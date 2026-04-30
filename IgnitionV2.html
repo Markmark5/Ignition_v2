@@ -215,6 +215,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
   </label>
   <span id="ws-file-name" style="font-size:9px;color:var(--text-dim);">—</span>
   <button class="btn btn-ghost" id="ws-dl-btn"   onclick="downloadWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">⬇ Download .txt</button>
+  <button class="btn btn-ghost" id="ws-dl-csv"  onclick="downloadParsedSnapshot()" style="font-size:9px;padding:4px 10px;display:none;">⬇ Parsed CSV</button>
   <button class="btn btn-ghost" id="ws-push-btn"  onclick="ghPushWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">⬆ Push to GitHub</button>
   <button class="btn btn-ghost" id="ws-clear-btn" onclick="clearWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">✕ Clear</button>
   <span id="ws-ticker-count" style="font-size:9px;color:var(--green);display:none;"></span>
@@ -627,7 +628,8 @@ function refreshData(){
     var groupLetter = ['a','b','c','d'][groupIdx] || 'spare';
     // ── capture both entry and groupLetter in an IIFE to avoid closure bug ──
     (function(capturedEntry, capturedGroup){
-      fetch(capturedEntry.url)
+      var bustUrl = capturedEntry.url + (capturedEntry.url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + Date.now();
+      fetch(bustUrl)
         .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
         .then(function(text){
           var rows = parseCsvIndexed(text, capturedGroup);
@@ -836,7 +838,7 @@ function setWsLoaded(fname, count, date){
   document.getElementById('ws-dot').className           = 'status-dot live';
   document.getElementById('ws-status').textContent      = count+' tickers'+(date?' · '+date:'');
   document.getElementById('ws-file-name').textContent   = fname||'—';
-  document.getElementById('ws-dl-btn').style.display    = '';
+  document.getElementById('ws-dl-btn').style.display=''; document.getElementById('ws-dl-csv').style.display='';
   document.getElementById('ws-push-btn').style.display  = '';
   document.getElementById('ws-clear-btn').style.display = '';
   var b = document.getElementById('ws-ticker-count');
@@ -849,7 +851,7 @@ function clearWeeklySnapshot(){
   document.getElementById('ws-dot').className           = 'status-dot';
   document.getElementById('ws-status').textContent      = 'Weekly Snapshot not loaded';
   document.getElementById('ws-file-name').textContent   = '—';
-  document.getElementById('ws-dl-btn').style.display    = 'none';
+  document.getElementById('ws-dl-btn').style.display='none'; document.getElementById('ws-dl-csv').style.display='none';
   document.getElementById('ws-push-btn').style.display  = 'none';
   document.getElementById('ws-clear-btn').style.display = 'none';
   document.getElementById('ws-ticker-count').style.display = 'none';
@@ -865,7 +867,7 @@ function loadCachedWeeklySnapshot(){
     var count  = Object.keys(weeklySnap).length; if(!count) return;
     document.getElementById('ws-dot').className      = 'status-dot';
     document.getElementById('ws-status').textContent = 'Cached · '+count+' tickers'+(result.latestDate?' · '+result.latestDate:'');
-    document.getElementById('ws-dl-btn').style.display    = '';
+    document.getElementById('ws-dl-btn').style.display=''; document.getElementById('ws-dl-csv').style.display='';
     document.getElementById('ws-push-btn').style.display  = '';
     document.getElementById('ws-clear-btn').style.display = '';
     var b = document.getElementById('ws-ticker-count');
@@ -1014,7 +1016,31 @@ function ghFetchRankSnapshot(silent){
     .catch(function(e){ if(!silent) console.warn('Rank snapshot pull:', e.message); });
 }
 
-// GitHub API primitives
+// Download only the parsed snapshot data as CSV — shows exactly what the screener uses
+function downloadParsedSnapshot(){
+  if(!Object.keys(weeklySnap).length){ showToast('No parsed snapshot data','warn'); return; }
+  var rows = ['TIDM,eps_1m_pct,rev_1m_pct,eps_1w_pct,rev_1w_pct,eps_trend'];
+  Object.keys(weeklySnap).sort().forEach(function(tid){
+    var w = weeklySnap[tid];
+    rows.push([
+      tid,
+      w.eps_1m_pct!==null?w.eps_1m_pct.toFixed(4):'',
+      w.rev_1m_pct!==null?w.rev_1m_pct.toFixed(4):'',
+      w.eps_1w_pct!==null?w.eps_1w_pct.toFixed(4):'',
+      w.rev_1w_pct!==null?w.rev_1w_pct.toFixed(4):'',
+      w.eps_trend||''
+    ].join(','));
+  });
+  var csv  = rows.join('\n');
+  var blob = new Blob([csv], {type:'text/csv'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'parsed_snapshot_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✓ Parsed snapshot exported — '+Object.keys(weeklySnap).length+' tickers','ok');
+}
 // Pull: no token — uses public raw URL (works on any PC without credentials)
 function ghRawFetch(repo, path){
   var url = 'https://raw.githubusercontent.com/'+repo+'/main/'+path;
@@ -1845,9 +1871,9 @@ function ignOpenPopup(tidm){
         +'</div>'
         +'<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">'+escHtml(d.sector||'—')+' · '+escHtml(d.idx_mem||'')+(d.yr_end?' · '+escHtml(d.yr_end):'')+(qtr?' · <span style="color:var(--amber);">'+qtr+'</span>':'')+'</div>'
       +'</div>'
-      +'<div style="display:flex;gap:16px;margin-left:auto;flex-wrap:wrap;align-items:center;">'
+      +'<div style="display:flex;gap:16px;margin-left:28px;flex-wrap:wrap;align-items:center;">'
         +(priceRef!==null
-          ?'<div style="margin-left:16px;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">Price</div>'
+          ?'<div style="margin-right:8px;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">Price</div>'
             +'<div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amber);">'+priceStr
               +(pctDay!==null?' <span style="font-size:11px;font-weight:500;color:'+(pctDay>=0?'var(--green)':'var(--red)')+';">('+fmtC(pctDay,1,'%').replace(/<[^>]+>/g,'')+')</span>':'')
             +'</div></div>'
@@ -1855,7 +1881,7 @@ function ignOpenPopup(tidm){
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">MCap</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+mcapStr+'</div></div>'
         +'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Shares</div><div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+(shares?Math.round(shares)+'m':'—')+'</div></div>'
         +(ctp?'<div style="text-align:center;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;">Consensus TP</div>'
-          +'<div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:'+(upside&&upside>0?'var(--green)':'var(--red)')+';">'+ctp.toFixed(2)+'p'+(upside!==null?' ('+fmtC(upside,0,'%').replace(/<[^>]+>/g,'')+'%)':'')+'</div></div>':'')
+          +'<div style="font-family:var(--font-display);font-size:13px;font-weight:700;">'+ctp.toFixed(2)+'p</div></div>':'')
         +'<div style="text-align:center;background:var(--amber-dim);border:1px solid var(--amber-mid);border-radius:6px;padding:6px 14px;">'
           +'<div style="font-size:8px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;">Ignition</div>'
           +'<div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--amber);">'+(d.ignition!==null?d.ignition.toFixed(0):'—')+'</div></div>'
@@ -1926,27 +1952,19 @@ function ignOpenPopup(tidm){
         // Right: breakout flags
         +'<div style="flex:1;padding:12px 14px;">'
           +'<div style="font-family:var(--font-display);font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Breakout Flags</div>'
-          +'<div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">Actuals — last FY vs prior FY</div>'
           +(function(){
-            // Actual Rev status
             var rvActGr = (fyR_1y&&fyR_2y&&fyR_2y>0)?((fyR_1y/fyR_2y-1)*100):null;
             var rvFcGr  = (fyR_cur&&fyR_1y&&fyR_1y>0)?((fyR_cur/fyR_1y-1)*100):null;
             var rvStat  = flagStatus(rvFcGr, rvActGr, revBreak);
-            // Actual EPS status
             var epActGr = (fyE_1y&&fyE_2y&&fyE_2y!==0)?((fyE_1y-fyE_2y)/Math.abs(fyE_2y)*100):null;
             var epFcGr  = (fyE_cur&&fyE_1y&&fyE_1y!==0)?((fyE_cur-fyE_1y)/Math.abs(fyE_1y)*100):null;
             var epStat  = flagStatus(epFcGr, epActGr, epsBreak);
-            // fc Rev status
             var fcRvGr  = (fcRev&&fyR_cur&&fyR_cur>0)?((fcRev/fyR_cur-1)*100):null;
-            var fcRvAGr = rvFcGr;
-            var fcRvStat= flagStatus(fcRvGr, fcRvAGr, fcRevBreak);
-            // fc EPS status
+            var fcRvStat= flagStatus(fcRvGr, rvFcGr, fcRevBreak);
             var fcEpGr  = (fcEps&&fyE_cur&&fyE_cur!==0)?((fcEps-fyE_cur)/Math.abs(fyE_cur)*100):null;
-            var fcEpAGr = epFcGr;
-            var fcEpStat= flagStatus(fcEpGr, fcEpAGr, fcEpsBreak);
+            var fcEpStat= flagStatus(fcEpGr, epFcGr, fcEpsBreak);
             return flagRow('Revenue actual new high', revBreak, rvStat)
               + flagRow('EPS actual new high', epsBreak, epStat)
-              + '<div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;margin:8px 0 4px;">Forecasts — fc vs last FY</div>'
               + flagRow('fc Revenue new high', fcRevBreak, fcRvStat)
               + flagRow('fc EPS new high', fcEpsBreak, fcEpStat, true);
           })()
@@ -2003,13 +2021,13 @@ function ignOpenPopup(tidm){
         if(lt===true && mt===true && st===true){
           lbl='BULL MARKET TREND'; col='var(--green)'; bg='rgba(16,185,129,.12)'; bd='rgba(16,185,129,.3)';
         } else if(mt===true && lt===false){
-          lbl='EMERGING BULL MARKET'; col='var(--amber)'; bg='rgba(245,158,11,.10)'; bd='rgba(245,158,11,.3)';
+          lbl='EMERGING BULL MARKET TREND'; col='var(--amber)'; bg='rgba(245,158,11,.10)'; bd='rgba(245,158,11,.3)';
         } else if(st===false && mt===true && lt===true){
-          lbl='CORRECTION BULL MARKET'; col='var(--green)'; bg='rgba(16,185,129,.10)'; bd='rgba(16,185,129,.25)';
+          lbl='CORRECTION BULL MARKET TREND'; col='var(--green)'; bg='rgba(16,185,129,.10)'; bd='rgba(16,185,129,.25)';
         } else if(mt===false && lt===true){
-          lbl='EMERGING BEAR MARKET'; col='var(--amber)'; bg='rgba(245,158,11,.10)'; bd='rgba(245,158,11,.3)';
+          lbl='EMERGING BEAR MARKET TREND'; col='var(--amber)'; bg='rgba(245,158,11,.10)'; bd='rgba(245,158,11,.3)';
         } else if(st===true && mt===false && lt===false){
-          lbl='CORRECTION BEAR MARKET'; col='var(--red)'; bg='rgba(239,68,68,.10)'; bd='rgba(239,68,68,.25)';
+          lbl='CORRECTION BEAR MARKET TREND'; col='var(--red)'; bg='rgba(239,68,68,.10)'; bd='rgba(239,68,68,.25)';
         } else if(lt===false && mt===false && st===false){
           lbl='BEAR MARKET TREND'; col='var(--red)'; bg='rgba(239,68,68,.12)'; bd='rgba(239,68,68,.3)';
         } else {
