@@ -214,7 +214,6 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
     <input type="file" id="ws-input" accept=".txt" style="display:none;" onchange="loadWeeklySnapshot(this)">
   </label>
   <span id="ws-file-name" style="font-size:9px;color:var(--text-dim);">—</span>
-  <button class="btn btn-ghost" id="ws-dl-btn"   onclick="downloadWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">⬇ Download .txt</button>
   <button class="btn btn-ghost" id="ws-dl-csv"  onclick="downloadParsedSnapshot()" style="font-size:9px;padding:4px 10px;display:none;">⬇ Parsed CSV</button>
   <button class="btn btn-ghost" id="ws-push-btn"  onclick="ghPushWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">⬆ Push to GitHub</button>
   <button class="btn btn-ghost" id="ws-clear-btn" onclick="clearWeeklySnapshot()" style="font-size:9px;padding:4px 10px;display:none;">✕ Clear</button>
@@ -840,7 +839,7 @@ function setWsLoaded(fname, count, date){
   document.getElementById('ws-dot').className           = 'status-dot live';
   document.getElementById('ws-status').textContent      = count+' tickers'+(date?' · '+date:'');
   document.getElementById('ws-file-name').textContent   = fname||'—';
-  document.getElementById('ws-dl-btn').style.display=''; document.getElementById('ws-dl-csv').style.display='';
+  document.getElementById('ws-dl-csv').style.display='';
   document.getElementById('ws-push-btn').style.display  = '';
   document.getElementById('ws-clear-btn').style.display = '';
   var b = document.getElementById('ws-ticker-count');
@@ -853,7 +852,7 @@ function clearWeeklySnapshot(){
   document.getElementById('ws-dot').className           = 'status-dot';
   document.getElementById('ws-status').textContent      = 'Weekly Snapshot not loaded';
   document.getElementById('ws-file-name').textContent   = '—';
-  document.getElementById('ws-dl-btn').style.display='none'; document.getElementById('ws-dl-csv').style.display='none';
+  document.getElementById('ws-dl-csv').style.display='none';
   document.getElementById('ws-push-btn').style.display  = 'none';
   document.getElementById('ws-clear-btn').style.display = 'none';
   document.getElementById('ws-ticker-count').style.display = 'none';
@@ -869,7 +868,7 @@ function loadCachedWeeklySnapshot(){
     var count  = Object.keys(weeklySnap).length; if(!count) return;
     document.getElementById('ws-dot').className      = 'status-dot';
     document.getElementById('ws-status').textContent = 'Cached · '+count+' tickers'+(result.latestDate?' · '+result.latestDate:'');
-    document.getElementById('ws-dl-btn').style.display=''; document.getElementById('ws-dl-csv').style.display='';
+    document.getElementById('ws-dl-csv').style.display='';
     document.getElementById('ws-push-btn').style.display  = '';
     document.getElementById('ws-clear-btn').style.display = '';
     var b = document.getElementById('ws-ticker-count');
@@ -1327,8 +1326,8 @@ function ignRun(){
         beatPrior=((hEc-hEp1)/Math.abs(hEp1)*100+(hRc/hRp1-1)*100)/2;
     }
     // half accel: V1 = (cur%vsPrior1y) - (1y%vs2y) EPS only
-    if(hEc!==null&&hEp1!==null&&hEp2!==null&&hEp1>0&&hEp2>0)
-      halfAccel=((hEc-hEp1)/hEp1*100)-((hEp1-hEp2)/hEp2*100);
+    if(hEc!==null&&hEp1!==null&&hEp2!==null&&hEp1!==0&&hEp2!==0)
+      halfAccel=((hEc-hEp1)/Math.abs(hEp1)*100)-((hEp1-hEp2)/Math.abs(hEp2)*100);
 
     // ── Breakout — V1 ────────────────────────────────────────
     // fc vs max of prior 2 FY EPS and Rev
@@ -1563,7 +1562,7 @@ function ignRender(filterQ){
     var momCol  = d.brokerMom!==null?(d.brokerMom>0?'var(--green)':d.brokerMom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
     // Emoji pinned far left, number pinned far right
     var momCell = '<div style="display:flex;align-items:center;width:100%;">'
-      +'<span style="font-size:11px;min-width:40px;flex-shrink:0;">'+(d.brokerFlag||'')+'</span>'
+      +'<span style="font-size:11px;min-width:46px;flex-shrink:0;">'+(d.brokerFlag||'')+'</span>'
       +'<span style="flex:1;text-align:right;color:'+momCol+';">'+momPct+'</span>'
       +'</div>';
     // New High: show R / E / RE matching V1
