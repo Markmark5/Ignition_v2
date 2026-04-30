@@ -1016,30 +1016,32 @@ function ghFetchRankSnapshot(silent){
     .catch(function(e){ if(!silent) console.warn('Rank snapshot pull:', e.message); });
 }
 
-// Download only the parsed snapshot data as CSV — shows exactly what the screener uses
+// Download full weekly series — one row per ticker per week
 function downloadParsedSnapshot(){
   if(!Object.keys(weeklySnap).length){ showToast('No parsed snapshot data','warn'); return; }
-  var rows = ['TIDM,eps_1m_pct,rev_1m_pct,eps_1w_pct,rev_1w_pct,eps_trend'];
+  var rows = ['TIDM,Date,EPS,Rev,Price'];
   Object.keys(weeklySnap).sort().forEach(function(tid){
     var w = weeklySnap[tid];
-    rows.push([
-      tid,
-      w.eps_1m_pct!==null?w.eps_1m_pct.toFixed(4):'',
-      w.rev_1m_pct!==null?w.rev_1m_pct.toFixed(4):'',
-      w.eps_1w_pct!==null?w.eps_1w_pct.toFixed(4):'',
-      w.rev_1w_pct!==null?w.rev_1w_pct.toFixed(4):'',
-      w.eps_trend||''
-    ].join(','));
+    if(!w.rows||!w.rows.length) return;
+    w.rows.forEach(function(r){
+      rows.push([
+        tid,
+        r.date||'',
+        r.eps!==null?r.eps:'',
+        r.rev!==null?r.rev:'',
+        r.price!==null?r.price:''
+      ].join(','));
+    });
   });
   var csv  = rows.join('\n');
   var blob = new Blob([csv], {type:'text/csv'});
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
   a.href   = url;
-  a.download = 'parsed_snapshot_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.download = 'snapshot_weekly_series_' + new Date().toISOString().slice(0,10) + '.csv';
   a.click();
   URL.revokeObjectURL(url);
-  showToast('✓ Parsed snapshot exported — '+Object.keys(weeklySnap).length+' tickers','ok');
+  showToast('✓ Weekly series exported — '+rows.length.toLocaleString()+' rows','ok');
 }
 // Pull: no token — uses public raw URL (works on any PC without credentials)
 function ghRawFetch(repo, path){
