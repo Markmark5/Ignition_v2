@@ -1531,7 +1531,8 @@ function ignRender(filterQ){
     // Broker mom — flag on left, % on right
     var momPct  = d.brokerMom!==null?((d.brokerMom>0?'+':'')+d.brokerMom.toFixed(1)+'%'):'—';
     var momCol  = d.brokerMom!==null?(d.brokerMom>0?'var(--green)':d.brokerMom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
-    var momCell = (d.brokerFlag?'<span style="font-size:11px;">'+d.brokerFlag+'</span> ':'')
+    // Emoji left-fixed width, % always right — so numbers line up even with no emoji
+    var momCell = '<span style="display:inline-block;width:36px;font-size:11px;">'+(d.brokerFlag||'')+'</span>'
                 + '<span style="color:'+momCol+';">'+momPct+'</span>';
     // TIDM — amber, bold, 13px matching V1, with flag slots
     var tidmCell = '<span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);font-size:13px;">'
@@ -1554,7 +1555,7 @@ function ignRender(filterQ){
       +'</div></td>'
       +maCell(d.lt)+maCell(d.mt)+maCell(d.st)
       +'<td style="color:'+rsiCol+';font-size:10px;">'+(d.rsi!==null?d.rsi.toFixed(0):'—')+'</td>'
-      +'<td style="font-size:10px;border-left:1px solid var(--border);white-space:nowrap;"><div style="display:flex;align-items:center;justify-content:space-between;gap:4px;">'+momCell+'</div></td>'
+      +'<td style="font-size:10px;border-left:1px solid var(--border);white-space:nowrap;text-align:right;">'+momCell+'</td>'
       +'<td style="font-size:10px;border-left:1px solid var(--border);">'+capStr+'</td>'
       +'<td style="font-size:10px;font-weight:600;color:'+sharesCol+';" title="'+(d.shares!==null?Math.round(d.shares)+'m':'')+'">'+sharesLabel+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.idx_mem||'')+'</td>'
@@ -1864,9 +1865,9 @@ function ignOpenPopup(tidm){
       +'</div>'
     +'</div>'
     // BODY — two columns
-    +'<div style="display:flex;flex:1;overflow:hidden;">'
+    +'<div style="display:flex;flex:1;overflow:hidden;background:var(--bg);">'
     // LEFT
-    +'<div style="flex:1;overflow-y:auto;padding:14px 16px;border-right:1px solid var(--border);">'
+    +'<div style="flex:1;overflow-y:auto;padding:14px 16px;border-right:1px solid var(--border);background:var(--bg);">'
       +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;">Full Year (YoY)</div>'
       +'<table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;table-layout:fixed;">'
         +'<colgroup><col style="width:90px"><col style="width:48px"><col style="width:48px"><col style="width:48px"><col style="width:56px"><col style="width:66px"><col style="width:66px"></colgroup>'
@@ -1967,7 +1968,7 @@ function ignOpenPopup(tidm){
       +'</div>'
     +'</div>'
     // RIGHT
-    +'<div style="width:46%;overflow-y:auto;padding:14px 16px;background:var(--surface);">'
+    +'<div style="width:46%;overflow-y:auto;padding:14px 16px;background:var(--bg);">'
       +'<div style="font-family:var(--font-display);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:12px;">Technicals</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">'
         +maCard(d.lt,'Long Term','200d MA')+maCard(d.mt,'Mid Term','100d MA')+maCard(d.st,'Short Term','50d MA')
@@ -1995,6 +1996,29 @@ function ignOpenPopup(tidm){
           +'</div>';
         })()
       +'</div>'
+      // Trend badge
+      +(function(){
+        var lt=d.lt, mt=d.mt, st=d.st;
+        var lbl, col, bg, bd;
+        if(lt===true && mt===true && st===true){
+          lbl='BULL MARKET TREND'; col='var(--green)'; bg='rgba(16,185,129,.12)'; bd='rgba(16,185,129,.3)';
+        } else if(mt===true && lt===false){
+          lbl='EMERGING BULL MARKET'; col='var(--amber)'; bg='rgba(245,158,11,.10)'; bd='rgba(245,158,11,.3)';
+        } else if(st===false && mt===true && lt===true){
+          lbl='CORRECTION BULL MARKET'; col='var(--green)'; bg='rgba(16,185,129,.10)'; bd='rgba(16,185,129,.25)';
+        } else if(mt===false && lt===true){
+          lbl='EMERGING BEAR MARKET'; col='var(--amber)'; bg='rgba(245,158,11,.10)'; bd='rgba(245,158,11,.3)';
+        } else if(st===true && mt===false && lt===false){
+          lbl='CORRECTION BEAR MARKET'; col='var(--red)'; bg='rgba(239,68,68,.10)'; bd='rgba(239,68,68,.25)';
+        } else if(lt===false && mt===false && st===false){
+          lbl='BEAR MARKET TREND'; col='var(--red)'; bg='rgba(239,68,68,.12)'; bd='rgba(239,68,68,.3)';
+        } else {
+          lbl='MIXED TREND'; col='var(--text-dim)'; bg='var(--surface2)'; bd='var(--border)';
+        }
+        return '<div style="background:'+bg+';border:1px solid '+bd+';border-radius:8px;padding:10px 16px;text-align:center;margin-bottom:14px;">'
+          +'<span style="font-size:11px;font-weight:800;letter-spacing:.1em;color:'+col+';">'+lbl+'</span>'
+        +'</div>';
+      })()
       +scoreHTML
     +'</div>'
     +'</div>';
