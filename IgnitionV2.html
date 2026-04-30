@@ -1559,9 +1559,17 @@ function ignRender(filterQ){
     // Broker mom — flag on left, % on right
     var momPct  = d.brokerMom!==null?((d.brokerMom>0?'+':'')+d.brokerMom.toFixed(1)+'%'):'—';
     var momCol  = d.brokerMom!==null?(d.brokerMom>0?'var(--green)':d.brokerMom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
-    // Emoji left-fixed width, % always right — so numbers line up even with no emoji
-    var momCell = '<span style="display:inline-block;width:36px;font-size:11px;">'+(d.brokerFlag||'')+'</span>'
-                + '<span style="color:'+momCol+';">'+momPct+'</span>';
+    // Emoji pinned far left, number pinned far right
+    var momCell = '<div style="display:flex;align-items:center;width:100%;">'
+      +'<span style="font-size:11px;min-width:40px;flex-shrink:0;">'+(d.brokerFlag||'')+'</span>'
+      +'<span style="flex:1;text-align:right;color:'+momCol+';">'+momPct+'</span>'
+      +'</div>';
+    // New High: show R / E / RE matching V1
+    var nhStr = '';
+    if(d.revNewHigh && d.epsNewHigh) nhStr = '<span style="color:var(--green);font-size:9px;font-weight:700;">RE</span>';
+    else if(d.revNewHigh) nhStr = '<span style="color:var(--green);font-size:9px;font-weight:700;">R</span>';
+    else if(d.epsNewHigh) nhStr = '<span style="color:var(--green);font-size:9px;font-weight:700;">E</span>';
+    else nhStr = '<span style="color:var(--text-dim);">—</span>';
     // TIDM — amber, bold, 13px matching V1, with flag slots
     var tidmCell = '<span style="color:var(--amber);font-weight:700;font-family:var(--font-mono);font-size:13px;">'
       +escHtml(d.tidm)+'</span>'
@@ -1576,14 +1584,14 @@ function ignRender(filterQ){
       +'<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.yr_end||'')+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.qtr||'')+'</td>'
-      +'<td style="text-align:center;font-size:9px;">'+(d.epsNewHigh||d.revNewHigh?'<span style="color:var(--green);">★</span>':'<span style="color:var(--text-dim);">—</span>')+'</td>'
+      +'<td style="text-align:center;font-size:9px;">'+nhStr+'</td>'
       +'<td><div class="rank-bar-wrap">'
         +'<div class="rank-bar-track"><div class="rank-bar-fill" style="width:'+barPct.toFixed(0)+'%;background:'+rankCol+';"></div></div>'
         +'<span class="rank-score" style="color:'+rankCol+';">'+(d.rank?d.rank.toFixed(0):'—')+'</span>'
       +'</div></td>'
       +maCell(d.lt)+maCell(d.mt)+maCell(d.st)
       +'<td style="color:'+rsiCol+';font-size:10px;">'+(d.rsi!==null?d.rsi.toFixed(0):'—')+'</td>'
-      +'<td style="font-size:10px;border-left:1px solid var(--border);white-space:nowrap;text-align:right;">'+momCell+'</td>'
+      +'<td style="font-size:10px;border-left:1px solid var(--border);white-space:nowrap;min-width:80px;">'+momCell+'</td>'
       +'<td style="font-size:10px;border-left:1px solid var(--border);">'+capStr+'</td>'
       +'<td style="font-size:10px;font-weight:600;color:'+sharesCol+';" title="'+(d.shares!==null?Math.round(d.shares)+'m':'')+'">'+sharesLabel+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.idx_mem||'')+'</td>'
@@ -1949,6 +1957,16 @@ function ignOpenPopup(tidm){
           +'<div style="height:1px;background:var(--border);margin:6px 0;"></div>'
           +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">EPS 1m</span>'+fmtC(bEps1m,2,'%')+'</div>'
           +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">Rev 1m</span>'+fmtC(bRev1m,2,'%')+'</div>'
+          +(ws&&ws.rows&&ws.rows.length>1?(
+            (function(){
+              var earliest=ws.rows[0], latest=ws.rows[ws.rows.length-1];
+              var epsYrPct=(earliest.eps!==null&&latest.eps!==null&&earliest.eps!==0)?((latest.eps-earliest.eps)/Math.abs(earliest.eps)*100):null;
+              var revYrPct=(earliest.rev!==null&&latest.rev!==null&&earliest.rev!==0)?((latest.rev-earliest.rev)/Math.abs(earliest.rev)*100):null;
+              return '<div style="height:1px;background:var(--border);margin:6px 0;"></div>'
+                +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">EPS (period)</span>'+fmtC(epsYrPct,1,'%')+'</div>'
+                +'<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:10px;"><span style="color:var(--text-dim);">Rev (period)</span>'+fmtC(revYrPct,1,'%')+'</div>';
+            })()
+          ):'')
           +'<div style="display:flex;justify-content:space-between;padding:6px 0 0;font-size:10px;font-weight:700;border-top:1px solid var(--border);margin-top:4px;"><span style="color:var(--text-dim);">Broker Mom</span>'+fmtC(d.brokerMom,2,'%')+'</div>'
         +'</div>'
         // Right: breakout flags
