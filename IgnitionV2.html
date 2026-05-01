@@ -1553,25 +1553,26 @@ function ignRender(filterQ){
     data = data.filter(function(d){
       var grp = liveData[d.tidm];
       if(!grp||!grp.d) return false;
-      var dp        = grp.d;
-      var daysSince = col(dp,'Z');
-      var high1td   = col(dp,'AA');
-      var price     = col(dp,'C');
-      var ma21      = col(dp,'Q');
+      var dp = grp.d;
+      var daysSince = col(dp,'Z');    // D·Z  = Days since low (1td–5td)
+      var high1td   = col(dp,'AA');   // D·AA = High 1td ago
+      var ma21      = col(dp,'Q');    // D·Q  = MA 21 SMA value
+      var price     = col(dp,'C') || col(dp,'B'); // D·C live price, D·B close fallback
       if(daysSince===null||high1td===null||price===null||ma21===null) return false;
       return daysSince<=1 && price>high1td && price<=ma21;
     });
-    // Sort: daysSince=0 first (intraday), then 1 (confirmed close), each subsorted by rank desc
-    data.sort(function(a,b){
-      var dA = col(liveData[a.tidm]&&liveData[a.tidm].d,'Z')||1;
-      var dB = col(liveData[b.tidm]&&liveData[b.tidm].d,'Z')||1;
+    // Sort: daysSince=0 (green — intraday) first, then 1 (blue — confirmed close)
+    // Each group subsorted by rank descending
+    data.sort(function(a,b2){
+      var dA = col(liveData[a.tidm]&&liveData[a.tidm].d,'Z');
+      var dB = col(liveData[b2.tidm]&&liveData[b2.tidm].d,'Z');
+      dA = dA===null?1:dA; dB = dB===null?1:dB;
       if(dA !== dB) return dA - dB; // 0 before 1
-      return b.rank - a.rank;
+      return b2.rank - a.rank;
     });
-    // Tag each row with its daysSince value for background colouring
     data = data.map(function(d){
       var ds = col(liveData[d.tidm]&&liveData[d.tidm].d,'Z');
-      return Object.assign({}, d, { _swingDays: ds });
+      return Object.assign({}, d, { _swingDays: ds===null?1:ds });
     });
   }
 
