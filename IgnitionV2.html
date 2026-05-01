@@ -264,9 +264,9 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button onclick="ghSaveConfig();ghFetchWeeklySnapshot();"
+      <button onclick="ghSaveConfig();ghFetchWeeklySnapshot();ghFetchRankSnapshot(false);"
         style="background:var(--surface3);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;padding:10px;font-family:var(--font-mono);font-size:10px;cursor:pointer;text-align:center;">
-        ⬇ Pull Weekly Snapshot<br><span style="color:var(--text-dim);font-size:9px;">loads .txt from GitHub</span>
+        ⬇ Pull Snapshot + Rankings<br><span style="color:var(--text-dim);font-size:9px;">loads .txt & rank delta from GitHub</span>
       </button>
       <button onclick="ghSaveConfig();ghPushRankSnapshot();"
         style="background:var(--blue-dim);border:1px solid rgba(96,165,250,0.3);color:var(--blue);border-radius:4px;padding:10px;font-family:var(--font-mono);font-size:10px;cursor:pointer;text-align:center;">
@@ -1561,10 +1561,10 @@ function ignRender(filterQ){
     var momPct  = d.brokerMom!==null?((d.brokerMom>0?'+':'')+d.brokerMom.toFixed(1)+'%'):'—';
     var momCol  = d.brokerMom!==null?(d.brokerMom>0?'var(--green)':d.brokerMom<0?'var(--red)':'var(--text-dim)'):'var(--text-dim)';
     // Emoji pinned far left, number pinned far right
-    var momCell = '<div style="display:flex;align-items:center;width:100%;">'
-      +'<span style="font-size:11px;min-width:46px;flex-shrink:0;">'+(d.brokerFlag||'')+'</span>'
-      +'<span style="flex:1;text-align:right;color:'+momCol+';">'+momPct+'</span>'
-      +'</div>';
+    var momCell = '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:2px;">'
+                + '<span style="font-size:11px;flex-shrink:0;">'+(d.brokerFlag||'<span style="display:inline-block;width:22px;"></span>')+'</span>'
+                + '<span style="color:'+momCol+';text-align:right;">'+momPct+'</span>'
+                + '</div>';
     // New High: show R / E / RE matching V1
     var nhStr = '';
     if(d.revNewHigh && d.epsNewHigh) nhStr = '<span style="color:var(--green);font-size:9px;font-weight:700;">RE</span>';
