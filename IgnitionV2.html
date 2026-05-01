@@ -739,18 +739,20 @@ function processWeeklySnapshot(text, fname){
 }
 
 function parseWeeklySnapshotText(text){
-  var SEP    = '============================================================\nSHARESCOPE DATA BLOCK';
+  // Split on block separators — each block starts with the separator line + "SHARESCOPE DATA BLOCK — TIDM"
+  var SEP    = '============================================================';
   var blocks = text.split(SEP);
   var data   = {}, latestDate = '';
 
   for(var bi = 1; bi < blocks.length; bi++){
     var block = blocks[bi];
-    var tidmM = block.match(/^[\s\u2014\u2013-]+([A-Z0-9.]+)/m);
+    // Exact TIDM match: must be "SHARESCOPE DATA BLOCK — TIDM" at start of block
+    var tidmM = block.match(/^\nSHARESCOPE DATA BLOCK[\s\u2014\u2013\-]+([A-Z0-9.]+)\s*\n/);
     if(!tidmM) continue;
     var tidm = tidmM[1].trim();
     var wsStart = block.indexOf('── WEEKLY SNAPSHOT');
     if(wsStart === -1) continue;
-    var wsEnd  = block.indexOf('============================================================', wsStart);
+    var wsEnd  = block.indexOf(SEP, wsStart);
     var wsText = wsEnd === -1 ? block.substring(wsStart) : block.substring(wsStart, wsEnd);
     var snap   = parseSnapshotBlock(wsText, tidm);
     if(snap){
@@ -765,47 +767,45 @@ function parseSnapshotBlock(wsText, tidm){
   var lines   = wsText.split(/\r?\n/);
   var rows    = [];
   var inData  = false;
+  var epsCol=-1, revCol=-1, priceCol=-1;
 
-  // Detect column positions from the header line so we handle blank columns correctly.
-  // ShareScope uses fixed-width columns — blank fields leave only spaces.
-  // Fixes: negative EPS (-105.7), Rev-only (AAZ), EPS-only (ARBB), price-only (88E), all-blank.
-  var epsCol = 18, revCol = 25, priceCol = 36; // safe defaults matching "Date              EPS    Rev(m)     Price"
+  // Find column positions from header — be flexible about whitespace
   for(var i = 0; i < lines.length; i++){
-    if(/EPS.*Rev.*Price/.test(lines[i])){
+    if(/\bEPS\b.*\bRev\b.*\bPrice\b/.test(lines[i])){
       epsCol   = lines[i].indexOf('EPS');
       revCol   = lines[i].indexOf('Rev');
       priceCol = lines[i].indexOf('Price');
       break;
     }
   }
+  // Fallback defaults matching "Date              EPS    Rev(m)     Price"
+  if(epsCol<0)   epsCol   = 18;
+  if(revCol<0)   revCol   = 25;
+  if(priceCol<0) priceCol = 36;
 
   function parseRow(line){
-    // Strip trailing annotation (◄ earliest / ◄ latest)
-    var clean = line.replace(/\s*◄.*$/, '');
+    var clean = line.replace(/\s*◄.*$/, '').replace(/[£p]/g,'');
     if(clean.length < 8) return null;
-    // Date must start the line
-    var dateM = clean.match(/^(\d{1,2}\s+\w{3}\s+\d{2})/);
+    var dateM = clean.match(/^\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{2})\s/);
     if(!dateM) return null;
-    function slice(from, to){ return to ? clean.slice(from, to).trim().replace(/[£p]/g,'') : clean.slice(from).trim().replace(/[£p]/g,''); }
-    function pf(s){ var n=parseFloat(s); return isNaN(n)?null:n; }
-    return {
-      date:  dateM[1],
-      eps:   pf(slice(epsCol,   revCol)),
-      rev:   pf(slice(revCol,   priceCol)),
-      price: pf(slice(priceCol)),
-    };
+    function pf(s){ var n=parseFloat((s||'').trim()); return isNaN(n)?null:n; }
+    // Always use whitespace splitting after the date — more reliable than fixed columns
+    // Fixed-column positions vary slightly between ShareScope export versions
+    var rest  = clean.slice(dateM[0].length).trim().split(/\s+/);
+    var eps   = rest.length>0 ? pf(rest[0]) : null;
+    var rev   = rest.length>1 ? pf(rest[1]) : null;
+    var price = rest.length>2 ? pf(rest[2]) : null;
+    return { date:dateM[1].trim(), eps:eps, rev:rev, price:price };
   }
 
   for(var j = 0; j < lines.length; j++){
     var line = lines[j];
-    if(/^-{20,}/.test(line)){ inData = !inData; continue; }
+    if(/^-{20,}/.test(line.trim())){ inData = !inData; continue; }
     if(!inData || /^\s*Date\s+EPS/.test(line)) continue;
     var r = parseRow(line);
     if(r) rows.push(r);
   }
 
-  // Always return a record even if all EPS/Rev values are null —
-  // ticker still counted, broker trend / price data preserved.
   var epsNetM   = wsText.match(/EPS net change \(full period\)\s*:\s*([+-]?[\d.]+%)/);
   var epsTrendM = wsText.match(/EPS last-4-week trend\s*:\s*(\w+)/);
   var earliest  = rows[0]||null;
@@ -827,11 +827,11 @@ function parseSnapshotBlock(wsText, tidm){
     eps_earliest:earliest ? earliest.eps : null,
     rev_earliest:earliest ? earliest.rev : null,
     eps_net_pct: epsNetM  ? epsNetM[1]  : null,
-    eps_trend:   epsTrendM? epsTrendM[1]: null,  // RISING | FLAT | FALLING | null
-    eps_1m_pct:  ref4w && latest ? safePct(ref4w.eps, latest.eps) : null,
-    rev_1m_pct:  ref4w && latest ? safePct(ref4w.rev, latest.rev) : null,
-    eps_1w_pct:  ref1w && latest ? safePct(ref1w.eps, latest.eps) : null,
-    rev_1w_pct:  ref1w && latest ? safePct(ref1w.rev, latest.rev) : null,
+    eps_trend:   epsTrendM? epsTrendM[1]: null,
+    eps_1m_pct:  safePct(ref4w&&ref4w.eps, latest&&latest.eps),
+    rev_1m_pct:  safePct(ref4w&&ref4w.rev, latest&&latest.rev),
+    eps_1w_pct:  safePct(ref1w&&ref1w.eps, latest&&latest.eps),
+    rev_1w_pct:  safePct(ref1w&&ref1w.rev, latest&&latest.rev),
   };
 }
 
