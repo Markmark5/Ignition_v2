@@ -1767,7 +1767,8 @@ function ignOpenPopup(tidm){
   var fyR_2y=fv(col(a,'Y')), fyR_1y=fv(col(a,'Z')), fyR_cur=fv(col(a,'AA'));
   var fyE_2y=fv(col(a,'AB')), fyE_1y=fv(col(a,'AC')), fyE_cur=fv(col(a,'AD'));
   var fcRev=fv(col(a,'M')), fcRev2=fv(col(a,'N')), fcEps=fv(col(a,'W')), fcEps2=fv(col(a,'X'));
-  var shares=fv(col(b,'Y')), close=fv(col(b,'AB')), price=fv(col(b,'AC')), ctp=fv(col(b,'Z'));
+  var shares=fv(col(b,'Y')), ctp=fv(col(b,'Z'));
+  var price=fv(col(dp,'C')), close=fv(col(dp,'B')); // D·C live price, D·B close
   var nd=fv(col(c,'Q')), ndFc=fv(col(c,'R')), ic=fv(col(c,'V')), icFc=fv(col(c,'W'));
   var ndFcf=fv(col(c,'T')), ndFcfFc=fv(col(c,'U')), mktcap=fv(col(c,'AD'));
   var close1td=fv(col(dp,'W')), rsi=d.rsi;
