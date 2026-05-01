@@ -1554,19 +1554,25 @@ function ignRender(filterQ){
       var grp = liveData[d.tidm];
       if(!grp||!grp.d) return false;
       var dp        = grp.d;
-      var daysSince = col(dp,'Z');   // D·Z  = Days since low (1td–5td)
-      var high1td   = col(dp,'AA');  // D·AA = High 1td ago
-      var price     = col(dp,'C');   // D·C  = Price (live)
-      var ma21      = col(dp,'Q');   // D·Q  = MA 21 SMA value
+      var daysSince = col(dp,'Z');
+      var high1td   = col(dp,'AA');
+      var price     = col(dp,'C');
+      var ma21      = col(dp,'Q');
       if(daysSince===null||high1td===null||price===null||ma21===null) return false;
-      // daysSinceLow = 0 (market open, today's low) or 1 (after close, yesterday's low)
-      var swingLow  = daysSince <= 1;
-      var breaksHigh= price > high1td;
-      var belowMA21 = price <= ma21;
-      return swingLow && breaksHigh && belowMA21;
+      return daysSince<=1 && price>high1td && price<=ma21;
     });
-    // Sort by rank descending
-    data.sort(function(a,b){ return b.rank - a.rank; });
+    // Sort: daysSince=0 first (intraday), then 1 (confirmed close), each subsorted by rank desc
+    data.sort(function(a,b){
+      var dA = col(liveData[a.tidm]&&liveData[a.tidm].d,'Z')||1;
+      var dB = col(liveData[b.tidm]&&liveData[b.tidm].d,'Z')||1;
+      if(dA !== dB) return dA - dB; // 0 before 1
+      return b.rank - a.rank;
+    });
+    // Tag each row with its daysSince value for background colouring
+    data = data.map(function(d){
+      var ds = col(liveData[d.tidm]&&liveData[d.tidm].d,'Z');
+      return Object.assign({}, d, { _swingDays: ds });
+    });
   }
 
   if(!data.length){
@@ -1620,7 +1626,10 @@ function ignRender(filterQ){
       +(d.acqnFlag?' <span style="color:var(--red);font-size:10px;">⚑</span>':'');
     function maCell(v){ return '<td class="'+(v===true?'ma-on':v===false?'ma-off':'ma-nil')+'" style="font-size:10px;text-align:center;">'+(v===true?'✓':v===false?'✗':'·')+'</td>'; }
 
-    html+='<tr class="tr-data" ondblclick="ignOpenPopup(\''+d.tidm+'\')">'
+    var rowBg = d._swingDays===0 ? 'background:rgba(16,185,129,.07);'    // intraday — green tint
+              : d._swingDays===1 ? 'background:rgba(96,165,250,.07);'    // confirmed close — blue tint
+              : '';
+    html+='<tr class="tr-data" style="'+rowBg+'" ondblclick="ignOpenPopup(\''+d.tidm+'\')">'
       +'<td class="td-left td-dim" style="font-size:9px;">'+pos+'</td>'
       +'<td style="text-align:center;">'+renderDelta(d.tidm,pos)+'</td>'
       +'<td class="td-left" style="font-weight:700;font-size:11px;color:var(--text-primary);">'+tidmCell+'</td>'
