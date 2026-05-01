@@ -97,8 +97,9 @@ table{width:100%;border-collapse:collapse;font-size:11px;}
 .th-left{text-align:left;}
 .th-amber{color:var(--amber)!important;}
 .th-blue{color:var(--blue)!important;}
-.tr-data{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
-.tr-data:hover{background:var(--surface2);}
+.tr-data{border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s;}
+.tr-data:hover{background:rgba(255,255,255,0.06);}
+.tr-data.selected{background:rgba(255,255,255,0.10)!important;}
 td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
 .td-left{text-align:left;}
 .td-dim{color:var(--text-dim);}
@@ -523,6 +524,10 @@ function buildUrlList(){
         +'<span class="url-num" style="width:36px;">'+i+'</span>'
         +'<span style="font-size:9px;color:var(--amber);width:160px;flex-shrink:0;white-space:nowrap;">'+label+'</span>'
         +'<input class="url-input" id="url-'+i+'" autocomplete="off" spellcheck="false" oninput="updateUrlCountBadge()">'
+        +'<button onclick="refreshSingleUrl('+i+')" title="Reload this feed" '
+          +'style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);font-size:10px;padding:1px 6px;cursor:pointer;line-height:1.4;" '
+          +'onmouseover="this.style.borderColor=\'var(--amber)\';this.style.color=\'var(--amber)\'" '
+          +'onmouseout="this.style.borderColor=\'\';this.style.color=\'\'">↺</button>'
         +'<span class="url-status-icon" id="url-icon-'+i+'">·</span>'
         +'</div>';
     }
@@ -616,6 +621,43 @@ function toggleUrlPanel(){
 // ═══════════════════════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════════════════════
+// Reload a single URL slot and merge its data into liveData without touching other feeds
+function refreshSingleUrl(idx){
+  var el = document.getElementById('url-'+idx);
+  var url = el ? el.value.trim() : '';
+  if(!url){ showToast('No URL in slot '+idx,'warn'); return; }
+
+  var groupIdx    = FEED_GROUP[idx-1];
+  var groupLetter = ['a','b','c','d'][groupIdx] || 'spare';
+
+  setUrlIcon(idx, '⏳', 'var(--amber)');
+
+  var cb5min  = Math.floor(Date.now() / 300000);
+  var bustUrl = url + (url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + cb5min;
+
+  fetch(bustUrl)
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+    .then(function(text){
+      var rows = parseCsvIndexed(text, groupLetter);
+      var count = 0;
+      rows.forEach(function(r){
+        var tid = (r['__col0']||'').trim().toUpperCase();
+        if(!tid || tid==='TIDM') return;
+        if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null };
+        liveData[tid][groupLetter] = r;
+        count++;
+      });
+      setUrlIcon(idx, '✓', 'var(--green)');
+      showToast('↺ Slot '+idx+' refreshed — '+count+' tickers updated','ok');
+      updateLatestDataTime();
+      if(Object.keys(liveData).length) ignRun();
+    })
+    .catch(function(e){
+      setUrlIcon(idx, '✗', 'var(--red)');
+      showToast('Slot '+idx+' failed: '+e.message,'err',4000);
+    });
+}
+
 function refreshData(){
   var active = getActiveUrls();
   if(!active.length){ toggleUrlPanel(); showToast('Add URLs first','warn'); return; }
@@ -1525,6 +1567,13 @@ function ignCycleSort(){
 // ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
+function selectRow(el){
+  // Clear any previously selected row
+  var prev = document.querySelector('.tr-data.selected');
+  if(prev && prev !== el) prev.classList.remove('selected');
+  el.classList.toggle('selected');
+}
+
 function ignTickerSearch(q){ ignRender(q.trim().toUpperCase()); }
 
 function ignRender(filterQ){
@@ -1630,7 +1679,7 @@ function ignRender(filterQ){
     var rowBg = d._swingDays===0 ? 'background:rgba(16,185,129,.07);'    // intraday — green tint
               : d._swingDays===1 ? 'background:rgba(96,165,250,.07);'    // confirmed close — blue tint
               : '';
-    html+='<tr class="tr-data" style="'+rowBg+'" ondblclick="ignOpenPopup(\''+d.tidm+'\')">'
+    html+='<tr class="tr-data" style="'+rowBg+'" onclick="selectRow(this)" ondblclick="ignOpenPopup(\''+d.tidm+'\')">'
       +'<td class="td-left td-dim" style="font-size:9px;">'+pos+'</td>'
       +'<td style="text-align:center;">'+renderDelta(d.tidm,pos)+'</td>'
       +'<td class="td-left" style="font-weight:700;font-size:11px;color:var(--text-primary);">'+tidmCell+'</td>'
