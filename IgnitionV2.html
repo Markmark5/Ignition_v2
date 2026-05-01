@@ -1888,7 +1888,9 @@ function ignOpenPopup(tidm){
         ?'<div style="margin-left:24px;"><div style="font-size:8px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;">Price</div>'
           +'<div style="font-family:var(--font-display);font-size:20px;font-weight:800;color:var(--amber);">'+priceStr
             +(pctDay!==null?' <span style="font-size:11px;font-weight:500;color:'+(pctDay>=0?'var(--green)':'var(--red)')+';">('+fmtC(pctDay,1,'%').replace(/<[^>]+>/g,'')+')</span>':'')
-          +'</div></div>'
+          +'</div>'
+          +(colS(dp,'E')?'<div style="font-size:9px;color:var(--text-dim);margin-top:1px;">'+colS(dp,'E')+'</div>':'')
+          +'</div>'
         :'')
       // Right group — MCap, Shares, CTP, Ignition, Rank — pushed to far right
       +'<div style="display:flex;gap:16px;margin-left:auto;flex-wrap:wrap;align-items:center;">'
