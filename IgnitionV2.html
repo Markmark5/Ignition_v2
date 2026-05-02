@@ -155,7 +155,15 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       <span style="color:var(--text-dim);">Latest Data</span>
       <span id="latest-data-time" style="color:var(--amber);font-weight:600;margin-left:4px;"></span>
     </div>
-    <span id="count-badge" style="display:none;"></span>
+    <div class="status-pill" id="grpd-pill" title="Upload combined Group D CSV (all tickers, D-group columns) to override live price feeds">
+      <div class="status-dot" id="grpd-dot" style="background:var(--text-dim);"></div>
+      <span style="color:var(--text-dim);font-size:9px;">D Override</span>
+      <label style="cursor:pointer;margin-left:4px;">
+        <span id="grpd-label" style="font-size:9px;color:var(--text-dim);text-decoration:underline;text-decoration-style:dotted;">upload</span>
+        <input type="file" accept=".csv,.txt" style="display:none;" onchange="loadGroupDOverride(this)">
+      </label>
+      <span id="grpd-clear" onclick="clearGroupDOverride()" style="display:none;cursor:pointer;color:var(--red);font-size:9px;margin-left:4px;">✕</span>
+    </div>
     <button class="btn btn-ghost" onclick="toggleInfo()" style="padding:5px 10px;">ⓘ</button>
   </div>
 </div>
@@ -1068,8 +1076,47 @@ function ghFetchRankSnapshot(silent){
 }
 
 // Download full weekly series — one row per ticker per week
+// ── Group D Override — upload combined CSV after market close ──
+var groupDOverrideActive = false;
+
+function loadGroupDOverride(input){
+  var file = input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var rows = parseCsvIndexed(e.target.result, 'd');
+    if(!rows.length){ showToast('No data found in file','err'); return; }
+    var count = 0;
+    rows.forEach(function(r){
+      var tid = (r['__col0']||'').trim().toUpperCase();
+      if(!tid||tid==='TIDM') return;
+      if(!liveData[tid]) liveData[tid] = { a:null, b:null, c:null, d:null };
+      liveData[tid].d = r;
+      count++;
+    });
+    groupDOverrideActive = true;
+    document.getElementById('grpd-dot').style.background = 'var(--green)';
+    document.getElementById('grpd-label').textContent    = file.name.replace(/\.(csv|txt)$/i,'');
+    document.getElementById('grpd-label').style.color    = 'var(--green)';
+    document.getElementById('grpd-clear').style.display  = '';
+    updateLatestDataTime();
+    showToast('✓ Group D override — '+count+' tickers','ok');
+    if(Object.keys(liveData).length) ignRun();
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function clearGroupDOverride(){
+  groupDOverrideActive = false;
+  document.getElementById('grpd-dot').style.background = 'var(--text-dim)';
+  document.getElementById('grpd-label').textContent    = 'upload';
+  document.getElementById('grpd-label').style.color    = 'var(--text-dim)';
+  document.getElementById('grpd-clear').style.display  = 'none';
+  showToast('Group D override cleared — live URLs active','ok');
+}
+
 function downloadParsedSnapshot(){
-  if(!Object.keys(weeklySnap).length){ showToast('No parsed snapshot data','warn'); return; }
   var rows = ['TIDM,Date,EPS,Rev,Price'];
   Object.keys(weeklySnap).sort().forEach(function(tid){
     var w = weeklySnap[tid];
