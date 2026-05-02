@@ -1789,13 +1789,20 @@ function ignOpenPopup(tidm){
   var fcRevBase=fyR_cur!==null?fyR_cur:fyR_1y;
   var fcRevBreak=fcRev!==null&&fcRevBase!==null&&fcRev>Math.max(fyR_1y||fcRevBase,fyR_2y||fcRevBase,fcRevBase);
 
-  // year labels
+  // Year labels — based on what data is actually in each column
+  // A·AD = current completed FY, A·AC = 1y prior, A·AB = 2y prior
+  // For Q2 (useH1=true): next yr end = yrEndYear, so cur FY = yrEndYear-1, 1y = yrEndYear-2, 2y = yrEndYear-3
+  // For Q4 (useH1=false): next yr end = yrEndYear, so cur FY = yrEndYear-1 also (just completed), fc = yrEndYear
   var yrEndYear=null;
   if(d.yr_end){ var m4=d.yr_end.match(/(\d{4})$/),m2=d.yr_end.match(/(\d{2})$/); if(m4)yrEndYear=parseInt(m4[1]); else if(m2)yrEndYear=2000+parseInt(m2[1]); }
-  var yFc1=yrEndYear?String(yrEndYear):'fc', yAct=yrEndYear?(useH1?String(yrEndYear):String(yrEndYear-1)):'Act';
-  var y1y=yrEndYear?(useH1?String(yrEndYear-1):String(yrEndYear-2)):'1y', y2y=yrEndYear?(useH1?String(yrEndYear-2):String(yrEndYear-3)):'2y';
-  var yFc2=yrEndYear?String(yrEndYear+1):'fc2';
-  var col2y=useH1?'':y2y, col1y=useH1?y2y:y1y, colAct=useH1?y1y:yAct;
+  // Act column = most recently completed FY = yrEndYear-1 always
+  // fc column  = yrEndYear (next year end = forecast year)
+  var yAct  = yrEndYear ? String(yrEndYear-1) : 'Act';
+  var y1y   = yrEndYear ? String(yrEndYear-2) : '1y ago';
+  var y2y   = yrEndYear ? String(yrEndYear-3) : '2y ago';
+  var yFc1  = yrEndYear ? String(yrEndYear)   : 'fc';
+  var yFc2  = yrEndYear ? String(yrEndYear+1) : 'fc2';
+  var col2y = y2y, col1y = y1y, colAct = yAct;
 
   function hRow(lbl,c2,p1,p2,p3){
     var vals=[p1,p2,p3].filter(function(x){return x!==null;});
@@ -2020,20 +2027,20 @@ function ignOpenPopup(tidm){
         +'<tr style="border-bottom:1px solid var(--border);">'
           +'<th style="'+thS('var(--text-dim)')+'text-align:left;"></th>'
           +'<th style="'+thS('var(--text-dim)')+'">'+col2y+'</th><th style="'+thS('var(--text-dim)')+'">'+col1y+'</th>'
-          +'<th style="'+thS('var(--text-dim)')+'">'+colAct+'</th><th style="'+thS('var(--amber)')+'">'+yFc1+'</th>'
+          +'<th style="'+thS('var(--text-dim)')+'">'+colAct+'</th><th style="'+thS('var(--amber)')+'" id="fy-fc-hdr">'+yFc1+'</th>'
           +'<th style="'+thS('var(--green)')+'">fc uplift%</th>'
           +'<th style="border-left:1px solid var(--border);'+thS('var(--amber)')+'">'+yFc2+'</th>'
         +'</tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">Revenue (m)</td>'
-          +'<td style="'+tdS()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyR_2y,1))+'</td>'
-          +'<td style="'+tdS()+'">'+(useH1?fmtN(fyR_2y,1):fmtN(fyR_1y,1))+'</td>'
-          +'<td style="'+tdS()+'">'+(useH1?fmtN(fyR_1y,1):fmtN(fyR_cur,1))+'</td>'
+          +'<td style="'+tdS()+'">'+fmtN(fyR_2y,1)+'</td>'
+          +'<td style="'+tdS()+'">'+fmtN(fyR_1y,1)+'</td>'
+          +'<td style="'+tdS()+'">'+fmtN(fyR_cur,1)+'</td>'
           +'<td style="'+tdS()+'">'+fmtN(fcRev,1)+'</td>'
           +'<td style="'+tdS()+'">'+fmtC(fcRev!==null?(fyR_cur!==null&&fyR_cur!==0?chg(fcRev,fyR_cur):fyR_1y!==null&&fyR_1y!==0?chg(fcRev,fyR_1y):null):null,1,'%')+'</td>'
           +'<td style="border-left:1px solid var(--border);'+tdS()+'">'+fmtN(fcRev2,1)+'</td></tr>'
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">EPS (p)</td>'
-          +'<td style="'+tdS()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyE_2y,1))+'</td>'
-          +'<td style="'+tdS()+'">'+(useH1?fmtN(fyE_2y,1):fmtN(fyE_1y,1))+'</td>'
+          +'<td style="'+tdS()+'">'+fmtN(fyE_2y,1)+'</td>'
+          +'<td style="'+tdS()+'">'+fmtN(fyE_1y,1)+'</td>'
           +'<td style="'+tdS()+'">'+fmtN(fyE_cur,1)+'</td>'
           +'<td style="'+tdS()+'">'+fmtN(fcEps,1)+'</td>'
           +'<td style="'+tdS()+'">'+fmtC(fcEps!==null?(fyE_cur!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):fyE_1y!==null&&fyE_1y!==0?chg(fcEps,fyE_1y):null):null,1,'%')+'</td>'
