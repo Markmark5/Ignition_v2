@@ -644,7 +644,7 @@ function refreshSingleUrl(idx){
   var cbVal   = (groupLetter === 'd') ? Date.now() : Math.floor(Date.now() / 300000);
   var bustUrl = url + (url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + cbVal;
 
-  fetch(bustUrl)
+  fetch(bustUrl, { cache: 'no-store' })
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
     .then(function(text){
       var rows = parseCsvIndexed(text, groupLetter);
@@ -689,7 +689,7 @@ function refreshData(){
       var isGroupD = (capturedGroup === 'd');
       var cbVal   = isGroupD ? Date.now() : Math.floor(Date.now() / 300000);
       var bustUrl = capturedEntry.url + (capturedEntry.url.indexOf('?')>=0 ? '&' : '?') + '_cb=' + cbVal;
-      fetch(bustUrl)
+      fetch(bustUrl, { cache: 'no-store' })
         .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
         .then(function(text){
           var rows = parseCsvIndexed(text, capturedGroup);
