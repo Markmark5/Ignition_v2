@@ -2034,7 +2034,7 @@ function ignOpenPopup(tidm){
         +'<tr><td style="padding:3px 8px;color:var(--text-dim);font-size:10px;">EPS (p)</td>'
           +'<td style="'+tdS()+'">'+(useH1?'<span style="color:var(--text-dim)">—</span>':fmtN(fyE_2y,1))+'</td>'
           +'<td style="'+tdS()+'">'+(useH1?fmtN(fyE_2y,1):fmtN(fyE_1y,1))+'</td>'
-          +'<td style="'+tdS()+'">'+(useH1?fmtN(fyE_1y,1):fmtN(fyE_cur,1))+'</td>'
+          +'<td style="'+tdS()+'">'+fmtN(fyE_cur,1)+'</td>'
           +'<td style="'+tdS()+'">'+fmtN(fcEps,1)+'</td>'
           +'<td style="'+tdS()+'">'+fmtC(fcEps!==null?(fyE_cur!==null&&fyE_cur!==0?chg(fcEps,fyE_cur):fyE_1y!==null&&fyE_1y!==0?chg(fcEps,fyE_1y):null):null,1,'%')+'</td>'
           +'<td style="border-left:1px solid var(--border);'+tdS()+'">'+fmtN(fcEps2,1)+'</td></tr>'
