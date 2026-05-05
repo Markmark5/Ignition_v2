@@ -1714,6 +1714,8 @@ function ignRender(filterQ){
     data = data.filter(function(d){ return checkNewHigh(d); });
     data.sort(function(a,b){ return b.rank - a.rank; });
   }
+
+  var maxRank = Math.max.apply(null, data.map(function(d){ return d.rank||0; }))||1;
   var html    = '';
 
   data.forEach(function(d, idx){
