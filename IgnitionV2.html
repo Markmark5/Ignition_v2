@@ -304,6 +304,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:11px;padding:3px 8px;outline:none;cursor:pointer;">
       <option value="">— Signals —</option>
       <option value="swing_day">📈 Swing Day</option>
+      <option value="new_high">🔵 New High</option>
     </select>
     <input id="ticker-search" type="text" placeholder="🔍 Lookup ticker…" autocomplete="off" spellcheck="false"
       style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:11px;padding:3px 8px;width:160px;outline:none;"
@@ -1618,6 +1619,12 @@ function ignCycleSort(){
 // ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
+function checkNewHigh(d){
+  var grp = liveData[d.tidm];
+  if(!grp||!grp.d) return false;
+  return colS(grp.d,'V') === '1';
+}
+
 function checkSwing(d){
   var grp = liveData[d.tidm];
   if(!grp||!grp.d) return false;
@@ -1703,7 +1710,10 @@ function ignRender(filterQ){
   document.getElementById('count-badge').textContent       = data.length+' stocks';
   document.getElementById('sort-mode-badge').style.display = '';
 
-  var maxRank = Math.max.apply(null, data.map(function(d){ return d.rank||0; }))||1;
+  if(signal === 'new_high'){
+    data = data.filter(function(d){ return checkNewHigh(d); });
+    data.sort(function(a,b){ return b.rank - a.rank; });
+  }
   var html    = '';
 
   data.forEach(function(d, idx){
@@ -1748,7 +1758,12 @@ function ignRender(filterQ){
       +'<td class="td-left" style="font-weight:700;font-size:11px;color:var(--text-primary);">'+tidmCell+'</td>'
       +'<td class="td-left" style="font-size:10px;color:var(--text-secondary);max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.name||'')+'</td>'
       +'<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>'
-      +'<td style="text-align:center;font-size:9px;font-weight:700;white-space:nowrap;">'+(checkSwing(d)?'<span style="color:var(--green);">SWING</span>':'')+'</td>'
+      +(function(){
+        var signals = [];
+        if(checkSwing(d)) signals.push('<span style="color:var(--green);display:block;">SWING</span>');
+        if(checkNewHigh(d)) signals.push('<span style="color:var(--blue);display:block;">NEW HIGH</span>');
+        return '<td style="text-align:center;font-size:9px;font-weight:700;white-space:nowrap;line-height:1.4;">'+signals.join('')+'</td>';
+      })()
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.yr_end||'')+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.qtr||'')+'</td>'
       +'<td style="text-align:center;font-size:9px;">'+nhStr+'</td>'
