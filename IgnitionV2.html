@@ -322,6 +322,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
         <th class="th th-left" style="width:120px;"  onclick="ignSort('tidm')">TIDM</th>
         <th class="th th-left" style="min-width:130px;" onclick="ignSort('name')">Name</th>
         <th class="th th-left" style="min-width:160px;" onclick="ignSort('sector')">Sector</th>
+        <th class="th"         style="width:52px;font-size:8px;">Tech</th>
         <th class="th"         style="width:58px;"   onclick="ignSort('yr_end')">Yr End</th>
         <th class="th"         style="width:30px;"   onclick="ignSort('qtr')">Q</th>
         <th class="th"         style="width:40px;">New Hi</th>
@@ -1617,6 +1618,18 @@ function ignCycleSort(){
 // ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
+function checkSwing(d){
+  var grp = liveData[d.tidm];
+  if(!grp||!grp.d) return false;
+  var dp        = grp.d;
+  var daysSince = col(dp,'Z');
+  var high1td   = col(dp,'AA');
+  var price     = col(dp,'C') || col(dp,'B');
+  var ma21      = col(dp,'Q');
+  if(daysSince===null||high1td===null||price===null||ma21===null) return false;
+  return daysSince<=1 && price>high1td && price<=ma21;
+}
+
 function selectRow(el){
   // Clear any previously selected row
   var prev = document.querySelector('.tr-data.selected');
@@ -1735,6 +1748,7 @@ function ignRender(filterQ){
       +'<td class="td-left" style="font-weight:700;font-size:11px;color:var(--text-primary);">'+tidmCell+'</td>'
       +'<td class="td-left" style="font-size:10px;color:var(--text-secondary);max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.name||'')+'</td>'
       +'<td class="td-left td-dim" style="font-size:9px;max-width:160px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(d.sector||'')+'</td>'
+      +'<td style="text-align:center;font-size:9px;font-weight:700;white-space:nowrap;">'+(checkSwing(d)?'<span style="color:var(--green);">SWING</span>':'')+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.yr_end||'')+'</td>'
       +'<td class="td-dim" style="font-size:9px;">'+escHtml(d.qtr||'')+'</td>'
       +'<td style="text-align:center;font-size:9px;">'+nhStr+'</td>'
