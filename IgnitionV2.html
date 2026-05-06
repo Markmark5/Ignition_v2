@@ -599,13 +599,14 @@ function updateUrlCountBadge(){
 }
 
 // urlIconState persists status across any potential DOM rebuilds
-var urlIconState = {}; // idx → {icon, color}
+var urlIconState = {}; // idx → {icon, color, time}
 
 function setUrlIcon(idx, icon, color){
-  urlIconState[idx] = { icon:icon, color:color };
+  var t = icon==='✓' ? fmtTime() : '';
+  urlIconState[idx] = { icon:icon, color:color, time:t };
   var el = document.getElementById('url-icon-'+idx);
   if(el){
-    el.textContent = icon;
+    el.textContent = icon + (t?' '+t:'');
     el.style.color = color;
     el.style.fontSize = '13px';
     el.style.fontWeight = '700';
@@ -617,7 +618,7 @@ function restoreUrlIcons(){
     var s  = urlIconState[idx];
     var el = document.getElementById('url-icon-'+idx);
     if(el){
-      el.textContent = s.icon;
+      el.textContent = s.icon + (s.time?' '+s.time:'');
       el.style.color = s.color;
       el.style.fontSize = '13px';
       el.style.fontWeight = '700';
@@ -1353,7 +1354,7 @@ function ignRun(){
     // ── META ─────────────────────────────────────────────────
     var name  =colS(a,'B');
     var yr_end=colS(a,'C');
-    var qtr   =colS(a,'D');
+    var qtr   = colS(b,'C') || colS(a,'D');  // B·C preferred (more frequently updated), A·D fallback
 
     // ── BROKER MOMENTUM — from live Group D feeds ─────────────
     // D·I = fc EPS upgrade % 1w,  D·H = fc Rev upgrade % 1w
@@ -1729,18 +1730,21 @@ function ignRender(filterQ){
       var ma50  = col(dp,'R');
       var ma100 = col(dp,'S');
       var ma200 = col(dp,'T');
-      var lt200 = colS(dp,'P');        // 200d rising flag
-      var relMCX= col(dp,'AB');        // Rel to MCX 6m
-      var hi52  = col(dp,'AC');        // 52w high
-      var lo52  = col(dp,'AD');        // 52w low
+      var lt200 = colS(dp,'P');
+      var relMCX= col(dp,'AB');
+      var hi52  = col(dp,'AC');
+      var lo52  = col(dp,'AD');
       if(price===null||ma50===null||ma100===null||ma200===null||hi52===null||lo52===null) return false;
-      return price > ma200                // 1. price above 200d
-          && price > ma100                // 2. price above 100d
-          && ma50  > ma200                // 3. 50d above 200d
-          && lt200 === '1'                // 4. 200d MA rising
-          && relMCX !== null && relMCX >= 10   // 5. outperforming MCX by ≥10%
-          && price >= hi52 * 0.80         // 6. within 20% of 52w high
-          && lo52  > 0 && price >= lo52 * 1.20; // 7. ≥20% above 52w low
+      // fc EPS filter — remove loss-making, keep if no forecast available
+      var epsFc = grp.a ? col(grp.a,'W') : null;
+      if(epsFc!==null && epsFc<0) return false;
+      return price > ma200
+          && price > ma100
+          && ma50  > ma200
+          && lt200 === '1'
+          && relMCX !== null && relMCX >= 10
+          && price >= hi52 * 0.80
+          && lo52  > 0 && price >= lo52 * 1.20;
     });
     data.sort(function(a,b){ return b.rank - a.rank; });
   }
