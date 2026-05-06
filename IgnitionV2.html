@@ -305,6 +305,7 @@ td{padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;}
       <option value="">— Signals —</option>
       <option value="swing_day">📈 Swing Day</option>
       <option value="new_high">🔵 New High</option>
+      <option value="minervini">⚡ Minervini</option>
     </select>
     <input id="ticker-search" type="text" placeholder="🔍 Lookup ticker…" autocomplete="off" spellcheck="false"
       style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:var(--font-mono);font-size:11px;padding:3px 8px;width:160px;outline:none;"
@@ -1716,6 +1717,31 @@ function ignRender(filterQ){
 
   if(signal === 'new_high'){
     data = data.filter(function(d){ return checkNewHigh(d); });
+    data.sort(function(a,b){ return b.rank - a.rank; });
+  }
+
+  if(signal === 'minervini'){
+    data = data.filter(function(d){
+      var grp = liveData[d.tidm];
+      if(!grp||!grp.d) return false;
+      var dp    = grp.d;
+      var price = col(dp,'C') || col(dp,'B');
+      var ma50  = col(dp,'R');
+      var ma100 = col(dp,'S');
+      var ma200 = col(dp,'T');
+      var lt200 = colS(dp,'P');        // 200d rising flag
+      var relMCX= col(dp,'AB');        // Rel to MCX 6m
+      var hi52  = col(dp,'AC');        // 52w high
+      var lo52  = col(dp,'AD');        // 52w low
+      if(price===null||ma50===null||ma100===null||ma200===null||hi52===null||lo52===null) return false;
+      return price > ma200                // 1. price above 200d
+          && price > ma100                // 2. price above 100d
+          && ma50  > ma200                // 3. 50d above 200d
+          && lt200 === '1'                // 4. 200d MA rising
+          && relMCX !== null && relMCX >= 10   // 5. outperforming MCX by ≥10%
+          && price >= hi52 * 0.80         // 6. within 20% of 52w high
+          && lo52  > 0 && price >= lo52 * 1.20; // 7. ≥20% above 52w low
+    });
     data.sort(function(a,b){ return b.rank - a.rank; });
   }
 
